@@ -1,0 +1,20 @@
+[package]
+name = "bitnuc"
+version = "0.1.0"
+edition = "2021"
+authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org"]
+description = "A library for efficient nucleotide sequence manipulation using 2-bit encoding"
+licence = "MIT"
+keywords = ["bioinformatics", "dna", "sequence", "nucleotide", "genetics"]
+categories = ["science", "data-structures"]
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "sequence_benchmark"
+harness = false
+
+[[bench]]
+name = "packing_benchmark"
+harness = false
