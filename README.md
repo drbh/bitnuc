@@ -1,4 +1,3 @@
-
 # bitnuc
 
 A library for efficient nucleotide sequence manipulation using 2-bit encoding.
@@ -16,16 +15,16 @@ For direct bit manipulation, use the `as_2bit` and `from_2bit` functions:
 ```rust
 use bitnuc::{as_2bit, from_2bit};
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-// Pack a sequence into a u64
-let packed = as_2bit(b"ACGT")?;
-assert_eq!(packed, 0b11100100);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Pack a sequence into a u64
+    let packed = as_2bit(b"ACGT")?;
+    assert_eq!(packed, 0b11100100);
 
-// Unpack back to a sequence
-let unpacked = from_2bit(packed, 4)?;
-assert_eq!(&unpacked, b"ACGT");
-# Ok(())
-# }
+    // Unpack back to a sequence
+    let unpacked = from_2bit(packed, 4)?;
+    assert_eq!(&unpacked, b"ACGT");
+    Ok(())
+}
 ```
 
 These functions are useful when you need to:
@@ -40,19 +39,19 @@ For example, packing multiple short sequences:
 ```rust
 use bitnuc::{as_2bit, from_2bit};
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-// Pack multiple 4-mers into u64s
-let kmers = [b"ACGT", b"TGCA", b"GGCC"];
-let packed: Vec<u64> = kmers
-    .into_iter()
-    .map(|kmer| as_2bit(kmer))
-    .collect::<Result<_, _>>()?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Pack multiple 4-mers into u64s
+    let kmers = [b"ACGT", b"TGCA", b"GGCC"];
+    let packed: Vec<u64> = kmers
+        .into_iter()
+        .map(|kmer| as_2bit(kmer))
+        .collect::<Result<_, _>>()?;
 
-// Unpack when needed
-let first_kmer = from_2bit(packed[0], 4)?;
-assert_eq!(&first_kmer, b"ACGT");
-# Ok(())
-# }
+    // Unpack when needed
+    let first_kmer = from_2bit(packed[0], 4)?;
+    assert_eq!(&first_kmer, b"ACGT");
+    Ok(())
+}
 ```
 
 ## High-Level Sequence Type
@@ -60,20 +59,20 @@ assert_eq!(&first_kmer, b"ACGT");
 For more complex sequence manipulation, use the [`PackedSequence`] type:
 
 ```rust
-use bitnuc::{PackedSequence, GCContent, BaseCount};
+    use bitnuc::{PackedSequence, GCContent, BaseCount};
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-let seq = PackedSequence::new(b"ACGTACGT")?;
+    fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let seq = PackedSequence::new(b"ACGTACGT")?;
 
-// Sequence analysis
-println!("GC Content: {}%", seq.gc_content());
-let [a_count, c_count, g_count, t_count] = seq.base_counts();
+    // Sequence analysis
+    println!("GC Content: {}%", seq.gc_content());
+    let [a_count, c_count, g_count, t_count] = seq.base_counts();
 
-// Slicing
-let subseq = seq.slice(1..5)?;
-assert_eq!(&subseq, b"CGTA");
-# Ok(())
-# }
+    // Slicing
+    let subseq = seq.slice(1..5)?;
+    assert_eq!(&subseq, b"CGTA");
+    Ok(())
+    }
 ```
 
 ## Memory Usage
@@ -97,7 +96,6 @@ All operations that could fail return a [`Result`] with [`NucleotideError`]:
 ```rust
 use bitnuc::{as_2bit, NucleotideError};
 
-# fn main() {
 // Invalid nucleotide
 let err = as_2bit(b"ACGN").unwrap_err();
 assert!(matches!(err, NucleotideError::InvalidBase(b'N')));
@@ -106,7 +104,6 @@ assert!(matches!(err, NucleotideError::InvalidBase(b'N')));
 let long_seq = vec![b'A'; 33];
 let err = as_2bit(&long_seq).unwrap_err();
 assert!(matches!(err, NucleotideError::SequenceTooLong(33)));
-# }
 ```
 
 ## Performance Considerations
@@ -118,22 +115,22 @@ directly can be more efficient than creating [`PackedSequence`] instances:
 use bitnuc::{as_2bit, from_2bit};
 use std::collections::HashMap;
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-// Efficient k-mer counting
-let mut kmer_counts = HashMap::new();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Efficient k-mer counting
+    let mut kmer_counts = HashMap::new();
 
-// Pack k-mers directly into u64s
-let sequence = b"ACGTACGT";
-for window in sequence.windows(4) {
-    let packed = as_2bit(window)?;
-    *kmer_counts.entry(packed).or_insert(0) += 1;
+    // Pack k-mers directly into u64s
+    let sequence = b"ACGTACGT";
+    for window in sequence.windows(4) {
+        let packed = as_2bit(window)?;
+        *kmer_counts.entry(packed).or_insert(0) += 1;
+    }
+
+    // Count of "ACGT"
+    let acgt_packed = as_2bit(b"ACGT")?;
+    assert_eq!(kmer_counts.get(&acgt_packed), Some(&2));
+    Ok(())
 }
-
-// Count of "ACGT"
-let acgt_packed = as_2bit(b"ACGT")?;
-assert_eq!(kmer_counts.get(&acgt_packed), Some(&2));
-# Ok(())
-# }
 ```
 
 See the documentation for [`as_2bit`] and [`from_2bit`] for more details on
