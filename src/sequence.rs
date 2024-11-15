@@ -302,6 +302,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn test_sequence_invalid_slice() {
         let seq = PackedSequence::new(b"ACGT").unwrap();
         assert!(matches!(

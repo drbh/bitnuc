@@ -1,5 +1,5 @@
 // benches/packing_benchmarks.rs
-use bitnuc::{GCContent, PackedSequence};
+use bitnuc::PackedSequence;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn generate_sequence(length: usize) -> Vec<u8> {
