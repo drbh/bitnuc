@@ -2,6 +2,8 @@
 
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
 ![actions status](https://github.com/noamteyssier/bitnuc/workflows/Rust/badge.svg)
+[![Crates.io](https://img.shields.io/crates/d/bitnuc?color=orange&label=crates.io)](https://crates.io/crates/bitnuc)
+[![docs.rs](https://img.shields.io/docsrs/bitnuc?color=green&label=docs.rs)](https://docs.rs/bitnuc/latest/bitnuc/)
 
 A library for efficient nucleotide sequence manipulation using 2-bit encoding.
 
