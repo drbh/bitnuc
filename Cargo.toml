@@ -6,7 +6,7 @@ authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org"]
 repository = "https://github.com/noamteyssier/bitnuc"
 documentation = "https://docs.rs/bitnuc"
 description = "A library for efficient nucleotide sequence manipulation using 2-bit encoding"
-licence = "MIT"
+license = "MIT"
 keywords = ["bioinformatics", "dna", "sequence", "nucleotide", "genetics"]
 categories = ["science", "data-structures"]
 
