@@ -59,9 +59,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 For more complex sequence manipulation, use the [`PackedSequence`] type:
 
 ```rust
-    use bitnuc::{PackedSequence, GCContent, BaseCount};
+use bitnuc::{PackedSequence, GCContent, BaseCount};
 
-    fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let seq = PackedSequence::new(b"ACGTACGT")?;
 
     // Sequence analysis
@@ -72,7 +72,7 @@ For more complex sequence manipulation, use the [`PackedSequence`] type:
     let subseq = seq.slice(1..5)?;
     assert_eq!(&subseq, b"CGTA");
     Ok(())
-    }
+}
 ```
 
 ## Memory Usage
