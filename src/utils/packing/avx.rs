@@ -1,3 +1,4 @@
+use crate::NucleotideError;
 use super::naive;
 use std::arch::x86_64::*;
 
