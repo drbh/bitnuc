@@ -1,18 +1,92 @@
-use crate::NucleotideError;
 use super::naive;
+use crate::NucleotideError;
 use std::arch::x86_64::*;
+
+#[repr(u8)]
+enum NucleotideBits {
+    A = 0b00,
+    C = 0b01,
+    G = 0b10,
+    T = 0b11,
+}
+
+// Using 128-bit SSE2 instead of 256-bit AVX2 to better match data size
+#[repr(align(16))]
+struct SimdConstants {
+    zeros: __m128i,
+    ones: __m128i,
+    twos: __m128i,
+    threes: __m128i,
+}
+
+impl SimdConstants {
+    #[inline(always)]
+    unsafe fn new() -> Self {
+        Self {
+            zeros: _mm_set1_epi8(NucleotideBits::A as i8),
+            ones: _mm_set1_epi8(NucleotideBits::C as i8),
+            twos: _mm_set1_epi8(NucleotideBits::G as i8),
+            threes: _mm_set1_epi8(NucleotideBits::T as i8),
+        }
+    }
+}
+
+#[inline(always)]
+unsafe fn create_dual_pattern_mask(chunk: __m128i, upper: i8, lower: i8) -> __m128i {
+    _mm_or_si128(
+        _mm_cmpeq_epi8(chunk, _mm_set1_epi8(upper)),
+        _mm_cmpeq_epi8(chunk, _mm_set1_epi8(lower)),
+    )
+}
+
+// Optimized bit selection using AND+OR instead of blend
+#[inline(always)]
+unsafe fn set_bits(
+    c_mask: __m128i,
+    g_mask: __m128i,
+    t_mask: __m128i,
+    constants: &SimdConstants,
+) -> __m128i {
+    let mut result = constants.zeros;
+
+    // Using AND+OR operations which can be more efficient than blend
+    result = _mm_or_si128(
+        _mm_and_si128(c_mask, constants.ones),
+        _mm_andnot_si128(c_mask, result),
+    );
+    result = _mm_or_si128(
+        _mm_and_si128(g_mask, constants.twos),
+        _mm_andnot_si128(g_mask, result),
+    );
+    result = _mm_or_si128(
+        _mm_and_si128(t_mask, constants.threes),
+        _mm_andnot_si128(t_mask, result),
+    );
+
+    result
+}
+
+#[inline(always)]
+unsafe fn process_simd_chunk(chunk: __m128i, constants: &SimdConstants) -> __m128i {
+    let (c_mask, g_mask, t_mask) = (
+        create_dual_pattern_mask(chunk, b'C' as i8, b'c' as i8),
+        create_dual_pattern_mask(chunk, b'G' as i8, b'g' as i8),
+        create_dual_pattern_mask(chunk, b'T' as i8, b't' as i8),
+    );
+    set_bits(c_mask, g_mask, t_mask, constants)
+}
 
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     if seq.len() > 32 {
         return Err(NucleotideError::SequenceTooLong(seq.len()));
     }
 
-    // For very short sequences, use the simple version
+    // Keep the same threshold as your AARCH64 version
     if seq.len() < 8 {
         return naive::as_2bit(seq);
     }
 
-    // Pre-validate all bases
+    // Pre-validate bases
     if let Some(&invalid) = seq
         .iter()
         .find(|&&b| !matches!(b, b'A' | b'a' | b'C' | b'c' | b'G' | b'g' | b'T' | b't'))
@@ -21,68 +95,37 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     }
 
     let mut packed = 0u64;
-
     let len = seq.len();
-    let simd_len = len - (len % 16); // Process 16 bytes at a time with AVX2
+    // Process 8 bytes at a time like the AARCH64 version
+    let simd_len = len - (len % 8);
+
     unsafe {
-        // Create constant vectors for comparison and result building
-        let zeros = _mm256_set1_epi8(0i8);
-        let ones = _mm256_set1_epi8(1i8);
-        let twos = _mm256_set1_epi8(2i8);
-        let threes = _mm256_set1_epi8(3i8);
+        let constants = SimdConstants::new();
 
-        // Load uppercase and lowercase base values
-        let a_upper = _mm256_set1_epi8(b'A' as i8);
-        let c_upper = _mm256_set1_epi8(b'C' as i8);
-        let g_upper = _mm256_set1_epi8(b'G' as i8);
-        let t_upper = _mm256_set1_epi8(b'T' as i8);
+        for chunk_idx in (0..simd_len).step_by(8) {
+            // Use 128-bit load instead of 256-bit
+            let chunk = _mm_loadu_si128(seq[chunk_idx..].as_ptr() as *const __m128i);
+            let result = process_simd_chunk(chunk, &constants);
 
-        for chunk_idx in (0..simd_len).step_by(16) {
-            // Load 16 bytes of sequence data
-            let chunk = _mm256_loadu_si256(seq[chunk_idx..].as_ptr() as *const __m256i);
+            let mut temp = [0u8; 16];
+            _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
 
-            // Convert lowercase to uppercase for simplified comparison
-            let uppercased = _mm256_or_si256(
-                chunk,
-                _mm256_set1_epi8(0x20), // Set bit 5 to convert to lowercase
-            );
-
-            // Create masks for each nucleotide
-            let c_mask = _mm256_cmpeq_epi8(uppercased, _mm256_set1_epi8(b'c' as i8));
-            let g_mask = _mm256_cmpeq_epi8(uppercased, _mm256_set1_epi8(b'g' as i8));
-            let t_mask = _mm256_cmpeq_epi8(uppercased, _mm256_set1_epi8(b't' as i8));
-
-            // Build result vector
-            let mut result = zeros;
-            result = _mm256_blendv_epi8(result, ones, c_mask);
-            result = _mm256_blendv_epi8(result, twos, g_mask);
-            result = _mm256_blendv_epi8(result, threes, t_mask);
-
-            // Store results
-            let mut temp = [0u8; 32];
-            _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
-
-            // Pack into u64
-            for (i, &val) in temp.iter().take(16).enumerate() {
+            for (i, &val) in temp.iter().take(8).enumerate() {
                 packed |= (val as u64) << ((chunk_idx + i) * 2);
             }
         }
 
-        // Handle remaining bases
-        seq.iter()
-            .skip(simd_len)
-            .take(len)
-            .enumerate()
-            .for_each(|(i, &base)| {
-                let bits = match base {
-                    b'A' | b'a' => 0b00,
-                    b'C' | b'c' => 0b01,
-                    b'G' | b'g' => 0b10,
-                    b'T' | b't' => 0b11,
-                    _ => unreachable!(),
-                };
-                packed |= (bits as u64) << ((simd_len + i) * 2);
-            });
+        // Handle remaining bases the same way as AARCH64
+        for (i, &base) in seq.iter().skip(simd_len).enumerate() {
+            let bits = match base {
+                b'A' | b'a' => NucleotideBits::A as u64,
+                b'C' | b'c' => NucleotideBits::C as u64,
+                b'G' | b'g' => NucleotideBits::G as u64,
+                b'T' | b't' => NucleotideBits::T as u64,
+                _ => unreachable!(),
+            };
+            packed |= bits << ((simd_len + i) * 2);
+        }
     }
 
     Ok(packed)

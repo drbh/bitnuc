@@ -11,7 +11,6 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     return aarch64::as_2bit(seq);
 
     #[cfg(target_arch = "x86_64")]
-    #[target_feature(enable = "avx")]
     return avx::as_2bit(seq);
 
     #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
