@@ -11,18 +11,6 @@ enum NucleotideBits {
     T = 0b11,
 }
 
-/// Creates a bitmask for matching both upper and lowercase versions of a nucleotide
-///
-/// This function combines equality comparisons for both cases of a nucleotide
-/// to create a single mask where matching positions are set to all 1s.
-#[inline(always)]
-unsafe fn create_dual_pattern_mask(chunk: uint8x8_t, upper: u8, lower: u8) -> uint8x8_t {
-    vorr_u8(
-        vceq_u8(chunk, vdup_n_u8(upper)),
-        vceq_u8(chunk, vdup_n_u8(lower)),
-    )
-}
-
 /// A reusable structure holding common SIMD constants
 #[repr(align(16))] // Ensure proper alignment for SIMD
 struct SimdConstants {
@@ -42,6 +30,18 @@ impl SimdConstants {
             threes: vdup_n_u8(NucleotideBits::T as u8),
         }
     }
+}
+
+/// Creates a bitmask for matching both upper and lowercase versions of a nucleotide
+///
+/// This function combines equality comparisons for both cases of a nucleotide
+/// to create a single mask where matching positions are set to all 1s.
+#[inline(always)]
+unsafe fn create_dual_pattern_mask(chunk: uint8x8_t, upper: u8, lower: u8) -> uint8x8_t {
+    vorr_u8(
+        vceq_u8(chunk, vdup_n_u8(upper)),
+        vceq_u8(chunk, vdup_n_u8(lower)),
+    )
 }
 
 /// Sets the appropriate 2-bit patterns based on nucleotide masks
