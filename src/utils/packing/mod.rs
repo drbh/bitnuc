@@ -1,19 +1,31 @@
 use crate::NucleotideError;
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
 mod aarch64;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
 mod avx;
 mod naive;
 
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
-    #[cfg(target_arch = "aarch64")]
-    return aarch64::as_2bit(seq);
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if is_aarch64_feature_detected!("neon") {
+        return aarch64::as_2bit(seq);
+    } else {
+        return naive::as_2bit(seq);
+    }
 
-    #[cfg(target_arch = "x86_64")]
-    return avx::as_2bit(seq);
+    #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
+    if is_x86_feature_detected!("avx") {
+        return avx::as_2bit(seq);
+    } else {
+        return naive::as_2bit(seq);
+    }
 
-    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    // #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64",)))]
+    #[cfg(any(
+        feature = "nosimd",
+        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"))
+    ))]
     return naive::as_2bit(seq);
 }
 

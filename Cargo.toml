@@ -10,7 +10,8 @@ license = "MIT"
 keywords = ["bioinformatics", "dna", "sequence", "nucleotide", "genetics"]
 categories = ["science", "data-structures"]
 
-[target.'cfg(target_arch = "aarch64")'.dependencies]
+[features]
+nosimd = []
 
 [dev-dependencies]
 criterion = "0.5.1"
