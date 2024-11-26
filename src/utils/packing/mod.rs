@@ -2,13 +2,19 @@ use crate::NucleotideError;
 
 #[cfg(target_arch = "aarch64")]
 mod aarch64;
+#[cfg(target_arch = "x86_64")]
+mod avx;
 mod naive;
 
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     #[cfg(target_arch = "aarch64")]
     return aarch64::as_2bit(seq);
 
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx")]
+    return avx::as_2bit(seq);
+
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
     return naive::as_2bit(seq);
 }
 
