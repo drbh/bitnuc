@@ -2,6 +2,9 @@ use crate::error::NucleotideError;
 
 #[inline(always)]
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
+    if seq.len() > 32 {
+        return Err(NucleotideError::SequenceTooLong(seq.len()));
+    }
     let mut packed = 0u64;
     for (i, &base) in seq.iter().enumerate() {
         let bits = match base {
