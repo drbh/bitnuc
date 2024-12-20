@@ -5,6 +5,8 @@ mod aarch64;
 #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
 mod avx;
 mod naive;
+#[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
+mod sse;
 
 /// Converts a nucleotide sequence into a 2-bit packed representation.
 ///
@@ -85,16 +87,24 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     }
 
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
-    if is_x86_feature_detected!("avx") {
+    if is_x86_feature_detected!("avx2") {
+        // Use 256 bit instructions
         return avx::as_2bit(seq);
+    } else if is_x86_feature_detected!("sse2") {
+        // Fall back to 128bit instructions
+        return sse::as_2bit(seq);
     } else {
+        // Cannot make use of SIMD features
         return naive::as_2bit(seq);
     }
 
-    // #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64",)))]
+    // Fall back to naive implemention if:
+    // - SIMD is disabled via nosimd feature
+    // - or SIMD feature is not enabled
+    // - or required CPU features aren't availabe
     #[cfg(any(
         feature = "nosimd",
-        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"))
+        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"),)
     ))]
     return naive::as_2bit(seq);
 }
@@ -116,6 +126,16 @@ mod testing {
         for (input, expected) in tests {
             assert_eq!(as_2bit(input).unwrap(), expected);
         }
+    }
+
+    #[test]
+    fn test_as_2bit_longer_sequence() {
+        let test = b"ACTGACTGACTGACTG";
+        let expected = 0b10110100101101001011010010110100;
+
+        assert_eq!(as_2bit(test).unwrap(), expected);
+
+        assert!(false);
     }
 
     #[test]

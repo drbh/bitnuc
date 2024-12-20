@@ -10,61 +10,64 @@ enum NucleotideBits {
     T = 0b11,
 }
 
-#[repr(align(32))] // Changed to 32-byte alignment for AVX2
+// Using 128-bit SSE2 instead of 256-bit AVX2 to better match data size
+#[repr(align(16))]
 struct SimdConstants {
-    zeros: __m256i,
-    ones: __m256i,
-    twos: __m256i,
-    threes: __m256i,
+    zeros: __m128i,
+    ones: __m128i,
+    twos: __m128i,
+    threes: __m128i,
 }
 
 impl SimdConstants {
     #[inline(always)]
     unsafe fn new() -> Self {
         Self {
-            zeros: _mm256_set1_epi8(NucleotideBits::A as i8),
-            ones: _mm256_set1_epi8(NucleotideBits::C as i8),
-            twos: _mm256_set1_epi8(NucleotideBits::G as i8),
-            threes: _mm256_set1_epi8(NucleotideBits::T as i8),
+            zeros: _mm_set1_epi8(NucleotideBits::A as i8),
+            ones: _mm_set1_epi8(NucleotideBits::C as i8),
+            twos: _mm_set1_epi8(NucleotideBits::G as i8),
+            threes: _mm_set1_epi8(NucleotideBits::T as i8),
         }
     }
 }
 
 #[inline(always)]
-unsafe fn create_dual_pattern_mask(chunk: __m256i, upper: i8, lower: i8) -> __m256i {
-    _mm256_or_si256(
-        _mm256_cmpeq_epi8(chunk, _mm256_set1_epi8(upper)),
-        _mm256_cmpeq_epi8(chunk, _mm256_set1_epi8(lower)),
+unsafe fn create_dual_pattern_mask(chunk: __m128i, upper: i8, lower: i8) -> __m128i {
+    _mm_or_si128(
+        _mm_cmpeq_epi8(chunk, _mm_set1_epi8(upper)),
+        _mm_cmpeq_epi8(chunk, _mm_set1_epi8(lower)),
     )
 }
 
+// Optimized bit selection using AND+OR instead of blend
 #[inline(always)]
 unsafe fn set_bits(
-    c_mask: __m256i,
-    g_mask: __m256i,
-    t_mask: __m256i,
+    c_mask: __m128i,
+    g_mask: __m128i,
+    t_mask: __m128i,
     constants: &SimdConstants,
-) -> __m256i {
+) -> __m128i {
     let mut result = constants.zeros;
 
-    result = _mm256_or_si256(
-        _mm256_and_si256(c_mask, constants.ones),
-        _mm256_andnot_si256(c_mask, result),
+    // Using AND+OR operations which can be more efficient than blend
+    result = _mm_or_si128(
+        _mm_and_si128(c_mask, constants.ones),
+        _mm_andnot_si128(c_mask, result),
     );
-    result = _mm256_or_si256(
-        _mm256_and_si256(g_mask, constants.twos),
-        _mm256_andnot_si256(g_mask, result),
+    result = _mm_or_si128(
+        _mm_and_si128(g_mask, constants.twos),
+        _mm_andnot_si128(g_mask, result),
     );
-    result = _mm256_or_si256(
-        _mm256_and_si256(t_mask, constants.threes),
-        _mm256_andnot_si256(t_mask, result),
+    result = _mm_or_si128(
+        _mm_and_si128(t_mask, constants.threes),
+        _mm_andnot_si128(t_mask, result),
     );
 
     result
 }
 
 #[inline(always)]
-unsafe fn process_simd_chunk(chunk: __m256i, constants: &SimdConstants) -> __m256i {
+unsafe fn process_simd_chunk(chunk: __m128i, constants: &SimdConstants) -> __m128i {
     let (c_mask, g_mask, t_mask) = (
         create_dual_pattern_mask(chunk, b'C' as i8, b'c' as i8),
         create_dual_pattern_mask(chunk, b'G' as i8, b'g' as i8),
@@ -78,11 +81,12 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
         return Err(NucleotideError::SequenceTooLong(seq.len()));
     }
 
-    // Increased minimum length for AVX2
-    if seq.len() < 16 {
+    // Keep the same threshold as your AARCH64 version
+    if seq.len() < 8 {
         return naive::as_2bit(seq);
     }
 
+    // Pre-validate bases
     if let Some(&invalid) = seq
         .iter()
         .find(|&&b| !matches!(b, b'A' | b'a' | b'C' | b'c' | b'G' | b'g' | b'T' | b't'))
@@ -92,26 +96,26 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
 
     let mut packed = 0u64;
     let len = seq.len();
-    // Process 16 bytes at a time for 256-bit operations
-    let simd_len = len - (len % 16);
+    // Process 8 bytes at a time like the AARCH64 version
+    let simd_len = len - (len % 8);
 
     unsafe {
         let constants = SimdConstants::new();
 
-        for chunk_idx in (0..simd_len).step_by(16) {
-            // Use 256-bit load
-            let chunk = _mm256_loadu_si256(seq[chunk_idx..].as_ptr() as *const __m256i);
+        for chunk_idx in (0..simd_len).step_by(8) {
+            // Use 128-bit load instead of 256-bit
+            let chunk = _mm_loadu_si128(seq[chunk_idx..].as_ptr() as *const __m128i);
             let result = process_simd_chunk(chunk, &constants);
 
-            let mut temp = [0u8; 32]; // Increased to 32 bytes for 256-bit
-            _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
+            let mut temp = [0u8; 16];
+            _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
 
-            for (i, &val) in temp.iter().take(16).enumerate() {
+            for (i, &val) in temp.iter().take(8).enumerate() {
                 packed |= (val as u64) << ((chunk_idx + i) * 2);
             }
         }
 
-        // Handle remaining bases
+        // Handle remaining bases the same way as AARCH64
         for (i, &base) in seq.iter().skip(simd_len).enumerate() {
             let bits = match base {
                 b'A' | b'a' => NucleotideBits::A as u64,
