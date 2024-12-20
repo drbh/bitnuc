@@ -140,3 +140,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 See the documentation for [`as_2bit`] and [`from_2bit`] for more details on
 working with packed sequences directly.
+
+
+## SIMD Acceleration
+
+`as_2bit` is optionally SIMD accelerated depending on the architecture of your system.
+By default, SIMD instructions are used, but they can be shut-off using the `nosimd` feature flag.
+
+For increased performance and to really take advantage of the SIMD I recommend compiling with:
+
+```bash
+RUSTFLAGS="-C target-cpu=native"
+```
+
+or to add these flags to your project via the cargo build config:
+
+```toml
+# ./cargo/config.toml
+[build]
+rustflags = ["-C", "target-cpu=native"]
+```
+
+Performance characteristics on my machine vary from 10% to 30% throughput increases depending on sequence size.
