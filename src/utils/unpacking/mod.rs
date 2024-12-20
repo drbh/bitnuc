@@ -27,12 +27,14 @@ use crate::NucleotideError;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Pack and unpack
 /// let packed = as_2bit(b"ACGT")?;
-/// let unpacked = from_2bit(packed, 4)?;
+/// let mut unpacked = Vec::new();
+/// from_2bit(packed, 4, &mut unpacked)?;
 /// assert_eq!(&unpacked, b"ACGT");
+/// unpacked.clear();
 ///
 /// // Partial unpacking
-/// let partial = from_2bit(packed, 2)?;
-/// assert_eq!(&partial, b"AC");
+/// from_2bit(packed, 2, &mut unpacked)?;
+/// assert_eq!(&unpacked, b"AC");
 /// # Ok(())
 /// # }
 /// ```
@@ -44,7 +46,7 @@ use crate::NucleotideError;
 /// # fn main() {
 /// // Length too long
 /// assert!(matches!(
-///     from_2bit(0, 33),
+///     from_2bit(0, 33, &mut Vec::new()),
 ///     Err(NucleotideError::InvalidLength(33))
 /// ));
 /// # }
@@ -58,7 +60,8 @@ use crate::NucleotideError;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let packed = 0b11100100; // "ACGT" in 2-bit encoding
-/// let seq = from_2bit(packed, 4)?;
+/// let mut seq = Vec::new();
+/// from_2bit(packed, 4, &mut seq)?;
 /// assert_eq!(seq[0], b'A'); // 00
 /// assert_eq!(seq[1], b'C'); // 01
 /// assert_eq!(seq[2], b'G'); // 10
@@ -66,12 +69,14 @@ use crate::NucleotideError;
 /// # Ok(())
 /// # }
 /// ```
-pub fn from_2bit(packed: u64, expected_size: usize) -> Result<Vec<u8>, NucleotideError> {
+pub fn from_2bit(
+    packed: u64,
+    expected_size: usize,
+    sequence: &mut Vec<u8>,
+) -> Result<(), NucleotideError> {
     if expected_size > 32 {
         return Err(NucleotideError::InvalidLength(expected_size));
     }
-
-    let mut sequence = Vec::with_capacity(expected_size);
 
     for i in 0..expected_size {
         let bits = (packed >> (i * 2)) & 0b11;
@@ -85,7 +90,7 @@ pub fn from_2bit(packed: u64, expected_size: usize) -> Result<Vec<u8>, Nucleotid
         sequence.push(base);
     }
 
-    Ok(sequence)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -100,8 +105,11 @@ mod testing {
             (0b11111111, 4, b"TTTT"),
         ];
 
+        let mut unpacked = Vec::new();
         for (input, size, expected) in tests {
-            assert_eq!(from_2bit(input, size).unwrap(), expected);
+            from_2bit(input, size, &mut unpacked).unwrap();
+            assert_eq!(unpacked, expected);
+            unpacked.clear();
         }
     }
 }

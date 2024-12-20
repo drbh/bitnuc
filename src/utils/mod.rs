@@ -28,18 +28,27 @@ mod testing {
             b"GGGG".as_slice(),
             b"TTTT".as_slice(),
         ];
+        let mut unpacked = Vec::new();
 
         for &seq in &test_cases {
             let packed = as_2bit(seq).unwrap();
-            let unpacked = from_2bit(packed, seq.len()).unwrap();
+            from_2bit(packed, seq.len(), &mut unpacked).unwrap();
             assert_eq!(seq, unpacked.as_slice());
+            unpacked.clear();
         }
     }
 
     #[test]
     fn test_partial_unpack() {
         let packed = as_2bit(b"ACGT").unwrap();
-        assert_eq!(from_2bit(packed, 2).unwrap(), b"AC");
-        assert_eq!(from_2bit(packed, 3).unwrap(), b"ACG");
+        let mut unpacked = Vec::new();
+
+        from_2bit(packed, 2, &mut unpacked).unwrap();
+        assert_eq!(unpacked, b"AC");
+        unpacked.clear();
+
+        from_2bit(packed, 3, &mut unpacked).unwrap();
+        assert_eq!(unpacked, b"ACG");
+        unpacked.clear();
     }
 }
