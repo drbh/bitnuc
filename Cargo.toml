@@ -1,6 +1,6 @@
 [package]
 name = "bitnuc"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org"]
 repository = "https://github.com/noamteyssier/bitnuc"
@@ -9,6 +9,13 @@ description = "A library for efficient nucleotide sequence manipulation using 2-
 license = "MIT"
 keywords = ["bioinformatics", "dna", "sequence", "nucleotide", "genetics"]
 categories = ["science", "data-structures"]
+
+[features]
+nosimd = []
+
+[profile.release]
+lto = true
+codegen-units = 1
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -19,4 +26,8 @@ harness = false
 
 [[bench]]
 name = "packing_benchmark"
+harness = false
+
+[[bench]]
+name = "simd_comparison"
 harness = false
