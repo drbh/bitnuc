@@ -3,7 +3,7 @@ pub mod packing;
 pub mod unpacking;
 
 pub use packing::as_2bit;
-pub use unpacking::from_2bit;
+pub use unpacking::{from_2bit, from_2bit_alloc};
 
 #[cfg(test)]
 mod testing {

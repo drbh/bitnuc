@@ -93,6 +93,41 @@ pub fn from_2bit(
     Ok(())
 }
 
+/// This calls from_2bit but allocates a new Vec to store the result.
+///
+/// # Arguments
+///
+/// * `packed` - A u64 containing the 2-bit packed sequence
+/// * `expected_size` - The number of bases to unpack
+///
+/// # Returns
+///
+/// Returns a `Vec<u8>` containing the ASCII sequence.
+///
+/// # Errors
+///
+/// Returns `NucleotideError::InvalidLength` if `expected_size` is greater than 32
+///
+/// # Examples
+///
+/// Basic unpacking:
+///
+/// ```rust
+/// use bitnuc::from_2bit_alloc;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let packed = 0b11100100; // "ACGT" in 2-bit encoding
+/// let seq = from_2bit_alloc(packed, 4)?;
+/// assert_eq!(&seq, b"ACGT");
+/// # Ok(())
+/// # }
+/// ```
+pub fn from_2bit_alloc(packed: u64, expected_size: usize) -> Result<Vec<u8>, NucleotideError> {
+    let mut sequence = Vec::with_capacity(expected_size);
+    from_2bit(packed, expected_size, &mut sequence)?;
+    Ok(sequence)
+}
+
 #[cfg(test)]
 mod testing {
     use super::*;
