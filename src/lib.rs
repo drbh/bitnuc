@@ -13,16 +13,23 @@
 //! For direct bit manipulation, use the `as_2bit` and `from_2bit` functions:
 //!
 //! ```rust
-//! use bitnuc::{as_2bit, from_2bit};
+//! use bitnuc::{as_2bit, from_2bit, from_2bit_alloc};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Pack a sequence into a u64
 //!     let packed = as_2bit(b"ACGT")?;
 //!     assert_eq!(packed, 0b11100100);
 //!
-//!     // Unpack back to a sequence
-//!     let unpacked = from_2bit(packed, 4)?;
+//!     // Unpack back to a sequence using a reusable buffer
+//!     let mut unpacked = Vec::new();
+//!     from_2bit(packed, 4, &mut unpacked)?;
 //!     assert_eq!(&unpacked, b"ACGT");
+//!     unpacked.clear();
+//!
+//!     // Unpack back to a sequence with a reallocation
+//!     let unpacked = from_2bit_alloc(packed, 4)?;
+//!     assert_eq!(&unpacked, b"ACGT");
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -48,8 +55,9 @@
 //!         .collect::<Result<_, _>>()?;
 //!
 //!     // Unpack when needed
-//!     let first_kmer = from_2bit(packed[0], 4)?;
-//!     assert_eq!(&first_kmer, b"ACGT");
+//!     let mut unpacked = Vec::new();
+//!     from_2bit(packed[0], 4, &mut unpacked)?;
+//!     assert_eq!(&unpacked, b"ACGT");
 //!     Ok(())
 //! }
 //! ```
@@ -133,6 +141,31 @@
 //! }
 //! ```
 //!
+//! If you are unpacking many sequences, consider reusing a buffer to avoid reallocations:
+//!
+//! ```rust
+//! use bitnuc::{as_2bit, from_2bit};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!
+//!     // Pack a sequence
+//!     let packed = as_2bit(b"ACGT")?;
+//!
+//!     // Reusable buffer for unpacking
+//!     let mut unpacked = Vec::new();
+//!     from_2bit(packed, 4, &mut unpacked)?;
+//!     assert_eq!(&unpacked, b"ACGT");
+//!     unpacked.clear();
+//!
+//!     // Pack another sequence
+//!     let packed = as_2bit(b"TGCA")?;
+//!     from_2bit(packed, 4, &mut unpacked)?;
+//!     assert_eq!(&unpacked, b"TGCA");
+//!     Ok(())
+//! }
+//! ```
+//!
+//!
 //! See the documentation for [`as_2bit`] and [`from_2bit`] for more details on
 //! working with packed sequences directly.
 
@@ -144,7 +177,7 @@ pub use error::NucleotideError;
 pub use sequence::PackedSequence;
 pub use utils::{
     analysis::{BaseCount, GCContent},
-    as_2bit, from_2bit,
+    as_2bit, from_2bit, from_2bit_alloc,
 };
 
 #[cfg(test)]

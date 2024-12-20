@@ -26,8 +26,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(packed, 0b11100100);
 
     // Unpack back to a sequence
-    let unpacked = from_2bit(packed, 4)?;
+    let mut unpacked = Vec::new(); // Allocate a reusable buffer
+    from_2bit(packed, 4, &mut unpacked)?;
     assert_eq!(&unpacked, b"ACGT");
+    unpacked.clear(); // Reuse the buffer
     Ok(())
 }
 ```
@@ -53,8 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Result<_, _>>()?;
 
     // Unpack when needed
-    let first_kmer = from_2bit(packed[0], 4)?;
-    assert_eq!(&first_kmer, b"ACGT");
+    let mut kmers = Vec::new();
+    from_2bit(packed[0], 4, &mut kmers)?;
+    assert_eq!(&kmers, b"ACGT");
     Ok(())
 }
 ```
