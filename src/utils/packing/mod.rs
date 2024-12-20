@@ -134,8 +134,6 @@ mod testing {
         let expected = 0b10110100101101001011010010110100;
 
         assert_eq!(as_2bit(test).unwrap(), expected);
-
-        assert!(false);
     }
 
     #[test]
