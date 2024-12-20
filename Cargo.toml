@@ -23,3 +23,7 @@ harness = false
 [[bench]]
 name = "packing_benchmark"
 harness = false
+
+[[bench]]
+name = "simd_comparison"
+harness = false
