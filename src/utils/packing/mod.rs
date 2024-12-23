@@ -80,22 +80,22 @@ mod sse;
 #[inline(always)]
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
-    if is_aarch64_feature_detected!("neon") {
-        return aarch64::as_2bit(seq);
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        aarch64::as_2bit(seq)
     } else {
-        return naive::as_2bit(seq);
+        naive::as_2bit(seq)
     }
 
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
     if is_x86_feature_detected!("avx2") {
         // Use 256 bit instructions
-        return avx::as_2bit(seq);
+        avx::as_2bit(seq)
     } else if is_x86_feature_detected!("sse2") {
         // Fall back to 128bit instructions
-        return sse::as_2bit(seq);
+        sse::as_2bit(seq)
     } else {
         // Cannot make use of SIMD features
-        return naive::as_2bit(seq);
+        naive::as_2bit(seq)
     }
 
     // Fall back to naive implemention if:
@@ -106,7 +106,7 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
         feature = "nosimd",
         all(not(target_arch = "aarch64"), not(target_arch = "x86_64"),)
     ))]
-    return naive::as_2bit(seq);
+    naive::as_2bit(seq)
 }
 
 #[cfg(test)]
