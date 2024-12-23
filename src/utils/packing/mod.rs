@@ -1,5 +1,3 @@
-use std::arch::is_aarch64_feature_detected;
-
 use crate::NucleotideError;
 
 #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
@@ -82,7 +80,7 @@ mod sse;
 #[inline(always)]
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
-    if is_aarch64_feature_detected!("neon") {
+    if std::arch::is_aarch64_feature_detected!("neon") {
         aarch64::as_2bit(seq)
     } else {
         naive::as_2bit(seq)
