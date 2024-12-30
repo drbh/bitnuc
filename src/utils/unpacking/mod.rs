@@ -2,6 +2,8 @@ use std::u64;
 
 use crate::NucleotideError;
 
+#[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+mod aarch64;
 #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
 mod avx;
 mod naive;
@@ -80,11 +82,18 @@ pub fn from_2bit(
     expected_size: usize,
     sequence: &mut Vec<u8>,
 ) -> Result<(), NucleotideError> {
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        unsafe { aarch64::from_2bit_simd(packed, expected_size, sequence) }
+    } else {
+        naive::from_2bit(packed, expected_size, sequence)
+    }
+
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
     if is_x86_feature_detected!("avx2") {
-        unsafe { return avx::from_2bit_simd(packed, expected_size, sequence) }
+        unsafe { avx::from_2bit_simd(packed, expected_size, sequence) }
     } else {
-        return naive::from_2bit(packed, expected_size, sequence);
+        naive::from_2bit(packed, expected_size, sequence)
     }
 
     // Fall back to naive implemention if:
