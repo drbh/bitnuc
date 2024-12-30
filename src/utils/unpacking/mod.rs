@@ -1,12 +1,10 @@
-use std::u64;
-
-use crate::NucleotideError;
-
 #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
 mod aarch64;
 #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
 mod avx;
 mod naive;
+
+use crate::NucleotideError;
 
 /// Converts a 2-bit packed representation back into a nucleotide sequence.
 ///

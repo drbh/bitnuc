@@ -2,11 +2,12 @@ use crate::NucleotideError;
 use std::arch::aarch64::*;
 
 /// Unpacks 8 bases at once using NEON SIMD instructions
-unsafe fn unpack_8_bases(packed: u64, base_lookup: uint8x16_t) -> uint8x8_t {
+unsafe fn unpack_8_bases(packed: u64, base_lookup: uint8x8_t) -> uint8x8_t {
     // Extract 2-bit values for 8 bases
     let mut values = [0u8; 8];
-    for i in 0..8 {
-        values[i] = ((packed >> (i * 2)) & 0b11) as u8;
+
+    for (idx, v) in values.iter_mut().enumerate() {
+        *v = ((packed >> (idx * 2)) & 0b11) as u8;
     }
 
     // Load these values into a NEON vector
@@ -32,10 +33,8 @@ pub unsafe fn from_2bit_simd(
     sequence.reserve(expected_size);
 
     // Create lookup table for each possible 2-bit value
-    // NEON's table lookup works differently from AVX's shuffle
-    // We only need one copy of the lookup table
-    let base_lookup =
-        vld1q_u8([b'A', b'C', b'G', b'T', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].as_ptr());
+    // NEONs table lookup works with 8-byte vectors
+    let base_lookup = vld1_u8([b'A', b'C', b'G', b'T', 0, 0, 0, 0].as_ptr());
 
     // Process 8 bases at a time
     for chunk in 0..simd_chunks {
