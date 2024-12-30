@@ -1,27 +1,14 @@
 use crate::NucleotideError;
 use std::arch::x86_64::*;
 
-unsafe fn unpack_8_bases(packed: u64, base_lookup: __m256i) -> __m256i {
-    // Extract bits for 8 bases all at once
+/// Unpack 8 bases from a packed 64-bit integer
+unsafe fn unpack_8_bases(packed: u64, base_lookup: __m128i) -> __m128i {
     let mut values = [0u8; 8];
     for i in 0..8 {
         values[i] = ((packed >> (i * 2)) & 0b11) as u8;
     }
-
-    // Load these values into a SIMD vector
-    let indices = _mm256_set1_epi64x(
-        ((values[7] as i64) << 56)
-            | ((values[6] as i64) << 48)
-            | ((values[5] as i64) << 40)
-            | ((values[4] as i64) << 32)
-            | ((values[3] as i64) << 24)
-            | ((values[2] as i64) << 16)
-            | ((values[1] as i64) << 8)
-            | (values[0] as i64),
-    );
-
-    // Use shuffle to convert to bases
-    _mm256_shuffle_epi8(base_lookup, indices)
+    let indices = _mm_loadu_si128(values.as_ptr() as *const __m128i);
+    _mm_shuffle_epi8(base_lookup, indices)
 }
 
 pub unsafe fn from_2bit_simd(
@@ -33,22 +20,19 @@ pub unsafe fn from_2bit_simd(
         return Err(NucleotideError::InvalidLength(expected_size));
     }
 
-    // Only handle full 8-base chunks with SIMD
     let simd_chunks = expected_size / 8;
     sequence.reserve(expected_size);
 
-    // Create lookup table for each possible 2-bit value
-    let base_lookup = _mm256_setr_epi8(
-        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    // Use 128bit instructions
+    let base_lookup = _mm_setr_epi8(
         b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     );
 
-    // Process 8 bases at a time
+    // Handle 8 bases at a time
     for chunk in 0..simd_chunks {
         let result = unpack_8_bases(packed >> (chunk * 16), base_lookup);
-
-        let mut temp = [0u8; 32];
-        _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
+        let mut temp = [0u8; 16];
+        _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
         sequence.extend_from_slice(&temp[..8]);
     }
 
