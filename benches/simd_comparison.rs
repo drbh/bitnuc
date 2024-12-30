@@ -6,8 +6,8 @@ fn generate_sequence(length: usize) -> Vec<u8> {
     (0..length).map(|i| bases[i % 4]).collect()
 }
 
-fn bench_simd_comparison(c: &mut Criterion) {
-    let mut group = c.benchmark_group("simd_comparison");
+fn bench_packing(c: &mut Criterion) {
+    let mut group = c.benchmark_group("packing");
 
     let impl_type = if cfg!(feature = "nosimd") {
         "nosimd"
@@ -53,5 +53,5 @@ fn bench_unpacking(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_simd_comparison, bench_unpacking);
+criterion_group!(benches, bench_packing, bench_unpacking);
 criterion_main!(benches);
