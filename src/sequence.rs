@@ -1,5 +1,5 @@
+use crate::encode;
 use crate::error::NucleotideError;
-use crate::utils::packing::as_2bit;
 use std::ops::Range;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -38,11 +38,11 @@ impl PackedSequence {
     /// # }
     /// ```
     pub fn new(seq: &[u8]) -> Result<Self, NucleotideError> {
-        let chunks = (seq.len() + 31) / 32;
-        let mut data = Vec::with_capacity(chunks);
-
-        for chunk in seq.chunks(32) {
-            data.push(as_2bit(chunk)?);
+        let mut data = Vec::new();
+        if seq.is_empty() {
+            // Skip encoding for empty sequences
+        } else {
+            encode(seq, &mut data)?;
         }
 
         Ok(Self {
