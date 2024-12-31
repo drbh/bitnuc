@@ -34,4 +34,8 @@ harness = false
 name = "simd_comparison"
 harness = false
 
+[[bench]]
+name = "coding_benchmark"
+harness = false
+
 [dependencies]
