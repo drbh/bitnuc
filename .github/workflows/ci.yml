@@ -27,14 +27,23 @@ jobs:
         run: cargo build --verbose
 
   test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
     name: Test
-    runs-on: "ubuntu-latest"
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v3
-      - name: Test Native
+      - name: Test Native (simd)
         run: cargo test --verbose
-      - name: Test Release
+      - name: Test Native (nosimd)
+        run: cargo test --verbose -F nosimd
+      - name: Test Release (simd)
         run: cargo test --release --verbose
+      - name: Test Release (nosimd)
+        run: cargo test --release --verbose -F nosimd
 
   coverage:
     name: Coverage
