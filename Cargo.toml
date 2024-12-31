@@ -1,6 +1,6 @@
 [package]
 name = "bitnuc"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org"]
 repository = "https://github.com/noamteyssier/bitnuc"
@@ -19,6 +19,8 @@ codegen-units = 1
 
 [dev-dependencies]
 criterion = "0.5.1"
+nucgen = "0.1.1"
+rand = "0.8.5"
 
 [[bench]]
 name = "sequence_benchmark"
@@ -31,3 +33,5 @@ harness = false
 [[bench]]
 name = "simd_comparison"
 harness = false
+
+[dependencies]

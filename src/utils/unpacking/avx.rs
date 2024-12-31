@@ -4,8 +4,8 @@ use std::arch::x86_64::*;
 /// Unpack 8 bases from a packed 64-bit integer
 unsafe fn unpack_8_bases(packed: u64, base_lookup: __m128i) -> __m128i {
     let mut values = [0u8; 8];
-    for i in 0..8 {
-        values[i] = ((packed >> (i * 2)) & 0b11) as u8;
+    for (i, v) in values.iter_mut().enumerate() {
+        *v = ((packed >> (i * 2)) & 0b11) as u8;
     }
     let indices = _mm_loadu_si128(values.as_ptr() as *const __m128i);
     _mm_shuffle_epi8(base_lookup, indices)
