@@ -159,4 +159,17 @@ mod testing {
             unpacked.clear();
         }
     }
+
+    #[test]
+    fn test_example_case_from_2bit() {
+        let packed = 71620941647064936;
+        let slen = 28;
+        let expected = b"AGGCTTGAGGCCCATTCTCTGATCGTTT";
+        let observed = from_2bit_alloc(packed, slen).unwrap();
+
+        let obs_str = std::str::from_utf8(&observed).unwrap();
+        let exp_str = std::str::from_utf8(expected).unwrap();
+        assert_eq!(obs_str, exp_str);
+        assert_eq!(&observed, expected);
+    }
 }
