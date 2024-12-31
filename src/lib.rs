@@ -68,7 +68,7 @@
 //!
 //! These will handle sequences of any length, padding the last u64 with zeros if needed.
 //!
-//! We'll use the `nucgen` crate to generate random sequences for testing:
+//! We'll use the [`nucgen`](https://crates.io/crates/nucgen) crate to generate random sequences for testing:
 //!
 //! ```rust
 //! use bitnuc::{encode, decode};

@@ -62,6 +62,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Mid-Level Encoding Functions
+
+For more control over encoding and decoding, use the `encode` and `decode` functions:
+
+These will handle sequences of any length, padding the last u64 with zeros if needed.
+
+We'll use the [`nucgen`](https://crates.io/crates/nucgen) crate to generate random sequences for testing:
+
+```rust
+use bitnuc::{encode, decode};
+use nucgen::Sequence;
+
+let mut rng = rand::thread_rng();
+let mut seq = Sequence::new();
+let seq_len = 1000;
+
+// Generate a random sequence
+seq.fill_buffer(&mut rng, seq_len);
+
+// Encode the sequence
+let mut ebuf = Vec::new(); // Buffer for encoded sequence
+encode(seq.bytes(), &mut ebuf);
+
+// Decode the sequence
+let mut dbuf = Vec::new(); // Buffer for decoded sequence
+decode(&ebuf, seq_len, &mut dbuf);
+
+// Check that the decoded sequence matches the original
+assert_eq!(seq.bytes(), &dbuf);
+```
+
+Note that the `encode` function will always encode a full u64.
+If you have a sequence that is not a multiple of 32 bases, the final u64 will be backed up to the remainder,
+and the rest of the bits will be set to zero.
+
+Decoding will ignore these zero bits and return the original sequence.
+
+
+
 ## High-Level Sequence Type
 
 For more complex sequence manipulation, use the [`PackedSequence`] type:
@@ -147,7 +186,7 @@ working with packed sequences directly.
 
 ## SIMD Acceleration
 
-`as_2bit` is optionally SIMD accelerated depending on the architecture of your system.
+`as_2bit` and `from_2bit` are optionally SIMD accelerated depending on the architecture of your system.
 By default, SIMD instructions are used, but they can be shut-off using the `nosimd` feature flag.
 
 For increased performance and to really take advantage of the SIMD I recommend compiling with:
