@@ -7,7 +7,7 @@ env:
 
 jobs:
   ci:
-    needs: [build, test, coverage]
+    needs: [build, test-matrix, coverage]
     name: CI
     runs-on: "ubuntu-latest"
     steps:
@@ -26,24 +26,29 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
-  test:
+  test-matrix:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        build: [debug, release]
+        simd: [enabled, disabled]
+        include:
+          - simd: enabled
+            simd_flag: ""
+          - simd: disabled
+            simd_flag: "-F nosimd"
+          - build: debug
+            build_flag: ""
+          - build: release
+            build_flag: "--release"
 
-    name: Test
+    name: Test ${{ matrix.os }} (${{ matrix.build }}, SIMD ${{ matrix.simd }})
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v3
-      - name: Test Native (simd)
-        run: cargo test --verbose
-      - name: Test Native (nosimd)
-        run: cargo test --verbose -F nosimd
-      - name: Test Release (simd)
-        run: cargo test --release --verbose
-      - name: Test Release (nosimd)
-        run: cargo test --release --verbose -F nosimd
+      - name: Run Tests
+        run: cargo test --verbose ${{ matrix.build_flag }} ${{ matrix.simd_flag }}
 
   coverage:
     name: Coverage
