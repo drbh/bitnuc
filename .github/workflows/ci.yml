@@ -31,8 +31,10 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v3
-      - name: Test
+      - name: Test Native
         run: cargo test --verbose
+      - name: Test Release
+        run: cargo test --release --verbose
 
   coverage:
     name: Coverage
