@@ -3,14 +3,7 @@ use std::arch::x86_64::*;
 
 /// Unpack 8 bases from a packed 64-bit integer
 #[inline(always)]
-unsafe fn unpack_8_bases(packed: u64) -> __m128i {
-    // Create a lookup table for converting 2-bit values to ASCII bases
-    let lookup = _mm_setr_epi8(
-        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
-        b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
-        b'G' as i8, b'T' as i8,
-    );
-
+unsafe fn unpack_8_bases(packed: u64, lookup: __m128i) -> __m128i {
     // Extract each 2-bit value and convert to index
     let mut indices = [0u8; 16];
     for i in 0..8 {
@@ -33,11 +26,18 @@ pub unsafe fn from_2bit_simd(
 
     sequence.reserve(expected_size);
 
+    // Create a lookup table for converting 2-bit values to ASCII bases
+    let lookup = _mm_setr_epi8(
+        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
+        b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
+        b'G' as i8, b'T' as i8,
+    );
+
     // Process full chunks of 8 bases
     let simd_chunks = expected_size / 8;
     for chunk in 0..simd_chunks {
         let chunk_data = packed >> (chunk * 16);
-        let result = unpack_8_bases(chunk_data);
+        let result = unpack_8_bases(chunk_data, lookup);
 
         let mut temp = [0u8; 16];
         _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
