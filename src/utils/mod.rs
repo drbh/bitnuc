@@ -3,7 +3,7 @@ pub mod packing;
 pub mod unpacking;
 
 pub use packing::as_2bit;
-pub use unpacking::{from_2bit, from_2bit_alloc};
+pub use unpacking::{from_2bit, from_2bit_alloc, from_2bit_multi};
 
 use crate::NucleotideError;
 
@@ -57,25 +57,7 @@ pub fn encode(sequence: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideErro
 ///
 /// If the sequence cannot be unpacked, an error is returned.
 pub fn decode(ebuf: &[u64], n_bases: usize, dbuf: &mut Vec<u8>) -> Result<(), NucleotideError> {
-    // Calculate the number of chunks and the remainder
-    let n_chunks = n_bases.div_ceil(32);
-    let rem = match n_bases % 32 {
-        0 => 32, // Full chunk
-        rem => rem,
-    };
-
-    // Process all chunks except the last one
-    ebuf.iter()
-        .take(n_chunks - 1)
-        .try_for_each(|component| from_2bit(*component, 32, dbuf))?;
-
-    // Process the last one with the remainder
-    ebuf.get(n_chunks - 1)
-        .map_or(Err(NucleotideError::InvalidLength(n_bases)), |&component| {
-            from_2bit(component, rem, dbuf)
-        })?;
-
-    Ok(())
+    from_2bit_multi(ebuf, n_bases, dbuf)
 }
 
 #[cfg(test)]

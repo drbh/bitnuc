@@ -6,6 +6,40 @@ mod naive;
 
 use crate::NucleotideError;
 
+/// Converts an arbitrary sized 2-bit packed representation back into a nucleotide sequence.
+pub fn from_2bit_multi(
+    ebuf: &[u64],
+    n_bases: usize,
+    dbuf: &mut Vec<u8>,
+) -> Result<(), NucleotideError> {
+    #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
+    if is_x86_feature_detected!("avx2") {
+        return unsafe { avx::from_2bit_multi_simd(ebuf, n_bases, dbuf) };
+    } else {
+        // Fall back to naive implemention if SIMD feature is not enabled
+    }
+
+    // Calculate the number of chunks and the remainder
+    let n_chunks = n_bases.div_ceil(32);
+    let rem = match n_bases % 32 {
+        0 => 32, // Full chunk
+        rem => rem,
+    };
+
+    // Process all chunks except the last one
+    ebuf.iter()
+        .take(n_chunks - 1)
+        .try_for_each(|component| from_2bit(*component, 32, dbuf))?;
+
+    // Process the last one with the remainder
+    ebuf.get(n_chunks - 1)
+        .map_or(Err(NucleotideError::InvalidLength(n_bases)), |&component| {
+            from_2bit(component, rem, dbuf)
+        })?;
+
+    Ok(())
+}
+
 /// Converts a 2-bit packed representation back into a nucleotide sequence.
 ///
 /// This function reverses the packing performed by `as_2bit`.
