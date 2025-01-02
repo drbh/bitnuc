@@ -1,25 +1,50 @@
 use crate::NucleotideError;
 use std::arch::x86_64::*;
 
-/// Unpack 8 bases from a packed 64-bit integer
 #[inline(always)]
-unsafe fn unpack_8_bases(packed: u64) -> __m128i {
-    // Create a lookup table for converting 2-bit values to ASCII bases
-    let lookup = _mm_setr_epi8(
-        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
-        b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
-        b'G' as i8, b'T' as i8,
-    );
-
-    // Extract each 2-bit value and convert to index
+unsafe fn unpack_8_bases(packed: u64, lookup: __m128i) -> __m128i {
     let mut indices = [0u8; 16];
-    for i in 0..8 {
-        indices[i] = ((packed >> (i * 2)) & 0b11) as u8;
-    }
 
-    // Load indices and shuffle
+    for (i, v) in indices.iter_mut().enumerate() {
+        *v = ((packed >> (i * 2)) & 0b11) as u8;
+    }
     let index_vec = _mm_loadu_si128(indices.as_ptr() as *const __m128i);
     _mm_shuffle_epi8(lookup, index_vec)
+}
+
+#[inline(always)]
+unsafe fn unpack_16_bases(packed: u64, lookup: __m128i) -> __m128i {
+    let mut indices = [0u8; 16];
+    for (i, v) in indices.iter_mut().enumerate() {
+        *v = ((packed >> (i * 2)) & 0b11) as u8;
+    }
+    let index_vec = _mm_loadu_si128(indices.as_ptr() as *const __m128i);
+    _mm_shuffle_epi8(lookup, index_vec)
+}
+
+#[inline(always)]
+unsafe fn unpack_32_bases(packed: u64, lookup: __m256i) -> __m256i {
+    let mut indices = [0u8; 32];
+    for (i, v) in indices.iter_mut().enumerate() {
+        *v = ((packed >> (i * 2)) & 0b11) as u8;
+    }
+    let index_vec = _mm256_loadu_si256(indices.as_ptr() as *const __m256i);
+    _mm256_shuffle_epi8(lookup, index_vec)
+}
+
+#[inline(always)]
+unsafe fn process_remainder(packed: u64, start: usize, end: usize, sequence: &mut Vec<u8>) {
+    static LOOKUP: [u8; 4] = [b'A', b'C', b'G', b'T'];
+    let count = end - start;
+    let old_len = sequence.len();
+    sequence.reserve(count);
+
+    let ptr = sequence.as_mut_ptr().add(old_len);
+    for i in 0..count {
+        let bits = (packed >> ((start + i) * 2)) & 0b11;
+        *ptr.add(i) = LOOKUP[bits as usize];
+    }
+    sequence.set_len(old_len + count);
 }
 
 pub unsafe fn from_2bit_simd(
@@ -33,29 +58,95 @@ pub unsafe fn from_2bit_simd(
 
     sequence.reserve(expected_size);
 
-    // Process full chunks of 8 bases
-    let simd_chunks = expected_size / 8;
-    for chunk in 0..simd_chunks {
-        let chunk_data = packed >> (chunk * 16);
-        let result = unpack_8_bases(chunk_data);
-
-        let mut temp = [0u8; 16];
-        _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
-        sequence.extend_from_slice(&temp[..8]);
+    if expected_size >= 32 {
+        // 32 bases at a time
+        let lookup = _mm256_setr_epi8(
+            b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
+            b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
+            b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8,
+            b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8,
+            b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8,
+        );
+        let result = unpack_32_bases(packed, lookup);
+        let mut temp = [0u8; 32];
+        _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
+        sequence.extend_from_slice(&temp[..expected_size]);
+    } else if expected_size >= 16 {
+        // 16 bases at a time
+        let lookup = _mm_setr_epi8(
+            b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
+            b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
+            b'G' as i8, b'T' as i8,
+        );
+        let simd_chunks = expected_size / 16;
+        for chunk in 0..simd_chunks {
+            let chunk_data = packed >> (chunk * 32);
+            let result = unpack_16_bases(chunk_data, lookup);
+            let mut temp = [0u8; 16];
+            _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
+            sequence.extend_from_slice(&temp[..16]);
+        }
+        let remaining_start = simd_chunks * 16;
+        process_remainder(packed, remaining_start, expected_size, sequence);
+    } else if expected_size >= 8 {
+        // 8 bases at a time
+        let lookup = _mm_setr_epi8(
+            b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
+            b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
+            b'G' as i8, b'T' as i8,
+        );
+        let simd_chunks = expected_size / 8;
+        for chunk in 0..simd_chunks {
+            let chunk_data = packed >> (chunk * 16);
+            let result = unpack_8_bases(chunk_data, lookup);
+            let mut temp = [0u8; 16];
+            _mm_storeu_si128(temp.as_mut_ptr() as *mut __m128i, result);
+            sequence.extend_from_slice(&temp[..8]);
+        }
+        let remaining_start = simd_chunks * 8;
+        process_remainder(packed, remaining_start, expected_size, sequence);
+    } else {
+        // Small sequences are handled by the naive implementation
+        process_remainder(packed, 0, expected_size, sequence);
     }
 
-    // Handle remaining bases individually
-    let remaining_start = simd_chunks * 8;
-    for i in remaining_start..expected_size {
-        let bits = (packed >> (i * 2)) & 0b11;
-        let base = match bits {
-            0b00 => b'A',
-            0b01 => b'C',
-            0b10 => b'G',
-            0b11 => b'T',
-            _ => unreachable!(),
-        };
-        sequence.push(base);
+    Ok(())
+}
+
+#[inline(always)]
+pub unsafe fn from_2bit_multi_simd(
+    ebuf: &[u64],
+    n_bases: usize,
+    sequence: &mut Vec<u8>,
+) -> Result<(), NucleotideError> {
+    sequence.reserve(n_bases);
+
+    // Set up SIMD lookup table once for all chunks
+    let lookup = _mm256_setr_epi8(
+        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8,
+        b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8,
+        b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8,
+        b'C' as i8, b'G' as i8, b'T' as i8, b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8,
+        b'A' as i8, b'C' as i8, b'G' as i8, b'T' as i8,
+    );
+
+    // Process full 32-base chunks
+    let full_chunks = n_bases / 32;
+    let mut temp = [0u8; 32];
+
+    for &chunk in ebuf.iter().take(full_chunks) {
+        let result = unpack_32_bases(chunk, lookup);
+        _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
+        sequence.extend_from_slice(&temp);
+    }
+
+    // Handle remaining bases if any
+    let remaining_bases = n_bases % 32;
+    if remaining_bases > 0 {
+        let last_chunk = ebuf[full_chunks];
+        let result = unpack_32_bases(last_chunk, lookup);
+        _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, result);
+        sequence.extend_from_slice(&temp[..remaining_bases]);
     }
 
     Ok(())

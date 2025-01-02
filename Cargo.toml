@@ -1,6 +1,6 @@
 [package]
 name = "bitnuc"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org"]
 repository = "https://github.com/noamteyssier/bitnuc"
@@ -34,4 +34,6 @@ harness = false
 name = "simd_comparison"
 harness = false
 
-[dependencies]
+[[bench]]
+name = "coding_benchmark"
+harness = false
