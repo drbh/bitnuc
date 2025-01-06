@@ -12,6 +12,13 @@ pub fn from_2bit_multi(
     n_bases: usize,
     dbuf: &mut Vec<u8>,
 ) -> Result<(), NucleotideError> {
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        return unsafe { aarch64::from_2bit_multi_simd(ebuf, n_bases, dbuf) };
+    } else {
+        // Fall back to naive implemention if SIMD feature is not enabled
+    }
+
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
     if is_x86_feature_detected!("avx2") {
         return unsafe { avx::from_2bit_multi_simd(ebuf, n_bases, dbuf) };
