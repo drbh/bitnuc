@@ -37,3 +37,7 @@ harness = false
 [[bench]]
 name = "coding_benchmark"
 harness = false
+
+[[bench]]
+name = "functions_benchmark"
+harness = false
