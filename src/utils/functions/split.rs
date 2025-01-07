@@ -94,7 +94,7 @@ pub fn split_packed(
     }
 
     // Handle the final carry if needed
-    if carry != 0 {
+    if carry != 0 && rbuf.len() < right_chunks {
         rbuf.push(carry);
     }
 
@@ -118,6 +118,9 @@ mod tests {
 
         // Split after 4 bases
         split_packed(&ebuf, seq.len(), 4, &mut lbuf, &mut rbuf).unwrap();
+
+        assert_eq!(lbuf.len(), 1);
+        assert_eq!(rbuf.len(), 1);
 
         // Verify left side
         let mut left = Vec::new();
@@ -145,11 +148,17 @@ mod tests {
         decode(&rbuf, seq.len(), &mut decoded).unwrap();
         assert_eq!(&decoded, seq);
 
+        assert_eq!(lbuf.len(), 0);
+        assert_eq!(rbuf.len(), 1);
+
         // Split at end
         split_packed(&ebuf, seq.len(), seq.len(), &mut lbuf, &mut rbuf).unwrap();
         let mut decoded = Vec::new();
         decode(&lbuf, seq.len(), &mut decoded).unwrap();
         assert_eq!(&decoded, seq);
+
+        assert_eq!(lbuf.len(), 1);
+        assert_eq!(rbuf.len(), 0);
     }
 
     #[test]
@@ -163,6 +172,10 @@ mod tests {
 
         // Split at position 7
         split_packed(&ebuf, seq.len(), 7, &mut lbuf, &mut rbuf).unwrap();
+
+        // Assert the expected number of chunks are found in both buffers
+        assert_eq!(lbuf.len(), 1);
+        assert_eq!(rbuf.len(), 1);
 
         let mut left = Vec::new();
         decode(&lbuf, 7, &mut left).unwrap();
@@ -184,6 +197,10 @@ mod tests {
 
         // Split at position 32 (chunk boundary)
         split_packed(&ebuf, seq.len(), 32, &mut lbuf, &mut rbuf).unwrap();
+
+        // Assert the expected number of chunks are found in both buffers
+        assert_eq!(lbuf.len(), 2);
+        assert_eq!(rbuf.len(), 1);
 
         let mut left = Vec::new();
         decode(&lbuf, 32, &mut left).unwrap();
