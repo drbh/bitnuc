@@ -7,8 +7,7 @@ use crate::NucleotideError;
 
 use super::hdist_scalar;
 
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2")]
+#[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
 #[inline]
 unsafe fn hdist_multi_avx2(ebuf1: &[u64], ebuf2: &[u64], full_chunks: usize) -> u32 {
     let mut total = 0u32;
