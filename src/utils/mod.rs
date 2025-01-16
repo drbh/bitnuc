@@ -3,7 +3,7 @@ pub mod functions;
 pub mod packing;
 pub mod unpacking;
 
-pub use functions::split_packed;
+pub use functions::{hdist, hdist_scalar, split_packed};
 pub use packing::as_2bit;
 pub use unpacking::{from_2bit, from_2bit_alloc, from_2bit_multi};
 
@@ -40,6 +40,23 @@ pub fn encode(sequence: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideErro
     ebuf.push(bits);
 
     Ok(())
+}
+
+/// Encode a sequence into a buffer of 2-bit encoded nucleotides.
+///
+/// This function allocates a new buffer to store the encoded nucleotides.
+///
+/// # Arguments
+///
+/// * `sequence` - The nucleotide sequence to encode.
+///
+/// # Errors
+///
+/// If the sequence cannot be encoded, an error is returned.
+pub fn encode_alloc(sequence: &[u8]) -> Result<Vec<u64>, NucleotideError> {
+    let mut ebuf = Vec::new();
+    encode(sequence, &mut ebuf)?;
+    Ok(ebuf)
 }
 
 /// Unpacks a 2-bit packed sequence into a nucleotide sequence.

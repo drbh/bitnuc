@@ -215,7 +215,8 @@ pub use error::NucleotideError;
 pub use sequence::PackedSequence;
 pub use utils::{
     analysis::{BaseCount, GCContent},
-    as_2bit, decode, encode, from_2bit, from_2bit_alloc, split_packed,
+    as_2bit, decode, encode, encode_alloc, from_2bit, from_2bit_alloc, hdist, hdist_scalar,
+    split_packed,
 };
 
 #[cfg(test)]
