@@ -41,3 +41,7 @@ harness = false
 [[bench]]
 name = "functions_benchmark"
 harness = false
+
+[[bench]]
+name = "hdist_benchmark"
+harness = false
