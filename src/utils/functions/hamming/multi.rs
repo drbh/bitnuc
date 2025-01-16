@@ -53,7 +53,6 @@ unsafe fn hdist_multi_avx2(ebuf1: &[u64], ebuf2: &[u64], full_chunks: usize) -> 
 
     // Handle remaining full chunks
     let remaining_start = quad_chunks * 4;
-    // for i in remaining_start..full_chunks {
     for (sub_ebuf1, sub_ebuf2) in ebuf1
         .iter()
         .zip(ebuf2.iter())
@@ -140,8 +139,7 @@ pub fn hdist(ebuf1: &[u64], ebuf2: &[u64], n_bases: usize) -> Result<u32, Nucleo
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
     unsafe {
         if is_x86_feature_detected!("avx2") && full_chunks >= 4 {
-            let total_dist = hdist_multi_avx2(ebuf1, ebuf2, full_chunks);
-            return Ok(total_dist);
+            total_dist = hdist_multi_avx2(ebuf1, ebuf2, full_chunks);
         }
     }
 
@@ -159,8 +157,6 @@ pub fn hdist(ebuf1: &[u64], ebuf2: &[u64], n_bases: usize) -> Result<u32, Nucleo
     }
 
     Ok(total_dist)
-
-    // hdist_multi_naive(ebuf1, ebuf2, n_bases)
 }
 
 #[cfg(test)]
