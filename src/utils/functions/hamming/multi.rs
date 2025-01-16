@@ -42,11 +42,13 @@ unsafe fn hdist_multi_avx2(ebuf1: &[u64], ebuf2: &[u64], full_chunks: usize) -> 
         // Combine differences
         let combined = _mm256_or_si256(lower_diffs, upper_diffs);
 
-        // Extract and count bits from each 64-bit lane
-        for lane in 0..4 {
-            let lane_diff = _mm256_extract_epi64(combined, lane) as u64;
-            total += lane_diff.count_ones();
-        }
+        // Extract and count bits from each 64-bit lane with fixed indices
+        let lane0 = _mm256_extract_epi64(combined, 0) as u64;
+        let lane1 = _mm256_extract_epi64(combined, 1) as u64;
+        let lane2 = _mm256_extract_epi64(combined, 2) as u64;
+        let lane3 = _mm256_extract_epi64(combined, 3) as u64;
+
+        total += lane0.count_ones() + lane1.count_ones() + lane2.count_ones() + lane3.count_ones();
     }
 
     // Handle remaining full chunks
