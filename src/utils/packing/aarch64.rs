@@ -125,3 +125,93 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
 
     Ok(packed)
 }
+
+/// Encode 16 ASCII nucleotides (`A`, `C`, `G`, `T`) into a single `u32`.
+///
+/// Output layout: nt0 → bits 0‑1 … nt15 → bits 30‑31 (little‑endian).
+#[inline(always)]
+pub unsafe fn encode_16_nucleotides(nucs: uint8x16_t) -> u32 {
+    // 1. ASCII → 2‑bit codes: code = ((b >> 1) ^ (b >> 2)) & 3
+    let t1 = vshrq_n_u8(nucs, 1);
+    let t2 = vshrq_n_u8(nucs, 2);
+    let code = vandq_u8(veorq_u8(t1, t2), vdupq_n_u8(3));
+
+    // 2. Pack two codes into one 4‑bit nibble
+    let even = vuzp1q_u8(code, code); // c0, c2, …, c14
+    let odd = vuzp2q_u8(code, code); // c1, c3, …, c15
+    let nibbles = vorrq_u8(even, vshlq_n_u8(odd, 2));
+
+    // 3. Pack two nibbles into one byte
+    let even_b = vuzp1q_u8(nibbles, nibbles); // p0, p2, p4, p6
+    let odd_b = vuzp2q_u8(nibbles, nibbles); // p1, p3, p5, p7
+    let packed = vorrq_u8(even_b, vshlq_n_u8(odd_b, 4));
+
+    // 4. Return the first lane (lower 32 bits)
+    vgetq_lane_u32(vreinterpretq_u32_u8(packed), 0)
+}
+
+/// Return `true` if every byte in `v` is a valid nucleotide (case‑insensitive).
+#[inline(always)]
+unsafe fn valid_block(v: uint8x16_t) -> bool {
+    let lower = vorrq_u8(v, vdupq_n_u8(0x20));
+    let is_a = vceqq_u8(lower, vdupq_n_u8(b'a'));
+    let is_c = vceqq_u8(lower, vdupq_n_u8(b'c'));
+    let is_g = vceqq_u8(lower, vdupq_n_u8(b'g'));
+    let is_t = vceqq_u8(lower, vdupq_n_u8(b't'));
+    let ok = vorrq_u8(is_a, vorrq_u8(is_c, vorrq_u8(is_g, is_t)));
+    vminvq_u8(ok) == 0xFF
+}
+
+/// Encode an arbitrary‑length ASCII slice into packed 2‑bit words (`u64`).
+///
+/// * 32 nt per word.
+/// * `output` must be large enough; otherwise `Err(())` is returned.
+/// * On any invalid byte the function zero‑fills `output` and returns `Err(())`.
+#[cfg(target_arch = "aarch64")]
+pub unsafe fn encode_nucleotides_simd(input: &[u8], output: &mut [u64]) -> Result<(), ()> {
+    let need = (input.len() + 31) / 32;
+    if output.len() < need {
+        return Err(());
+    }
+
+    output.fill(0);
+
+    let mut ip = input.as_ptr();
+    let mut left = input.len();
+    let mut out = output.as_mut_ptr();
+
+    // Vector loop: 32 nt → 1 u64
+    while left >= 32 {
+        let v0 = vld1q_u8(ip);
+        let v1 = vld1q_u8(ip.add(16));
+        if !valid_block(v0) || !valid_block(v1) {
+            return Err(());
+        }
+        *out = (encode_16_nucleotides(v0) as u64) | ((encode_16_nucleotides(v1) as u64) << 32);
+
+        ip = ip.add(32);
+        left -= 32;
+        out = out.add(1);
+    }
+
+    // Scalar tail (≤ 31 nt)
+    if left != 0 {
+        let mut tail = 0u64;
+        for i in 0..left {
+            tail |= match *ip.add(i) | 0x20 {
+                b'a' => 0u64,
+                b'c' => 1u64,
+                b'g' => 2u64,
+                b't' => 3u64,
+                _ => return Err(()),
+            } << (2 * i);
+        }
+        *out = tail;
+    }
+    Ok(())
+}
+
+pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<(), ()> {
+    out.resize((seq.len() + 31) / 32, 0);
+    unsafe { encode_nucleotides_simd(seq, out) }
+}

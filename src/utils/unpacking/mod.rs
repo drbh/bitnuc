@@ -181,6 +181,16 @@ pub fn from_2bit_alloc(packed: u64, expected_size: usize) -> Result<Vec<u8>, Nuc
     Ok(sequence)
 }
 
+pub fn fast_decode(enc: &[u64], len: usize, out: &mut Vec<u8>) -> Result<u64, NucleotideError> {
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        let _ = aarch64::fast_decode(enc, len, out);
+        Ok(out.len() as u64)
+    } else {
+        Err(NucleotideError::Unsupported)
+    }
+}
+
 #[cfg(test)]
 mod testing {
     use super::*;

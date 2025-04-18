@@ -109,6 +109,16 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     naive::as_2bit(seq)
 }
 
+pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<u64, NucleotideError> {
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        let _ = aarch64::fast_encode(seq, out);
+        Ok(out.len() as u64)
+    } else {
+        Err(NucleotideError::Unsupported)
+    }
+}
+
 #[cfg(test)]
 mod testing {
     use super::*;

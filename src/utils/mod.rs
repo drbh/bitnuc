@@ -4,8 +4,8 @@ pub mod packing;
 pub mod unpacking;
 
 pub use functions::{hdist, hdist_scalar, split_packed};
-pub use packing::as_2bit;
-pub use unpacking::{from_2bit, from_2bit_alloc, from_2bit_multi};
+pub use packing::{as_2bit, fast_encode};
+pub use unpacking::{fast_decode, from_2bit, from_2bit_alloc, from_2bit_multi};
 
 use crate::NucleotideError;
 
@@ -20,6 +20,11 @@ use crate::NucleotideError;
 ///
 /// If the sequence cannot be encoded, an error is returned.
 pub fn encode(sequence: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideError> {
+    // If the sequence is large enough and SIMD is supported, use SIMD acceleration
+    if sequence.len() > 1_000 && fast_encode(sequence, ebuf).is_ok() {
+        return Ok(());
+    }
+
     // Clear the buffer
     ebuf.clear();
 
@@ -76,6 +81,12 @@ pub fn encode_alloc(sequence: &[u8]) -> Result<Vec<u64>, NucleotideError> {
 ///
 /// If the sequence cannot be unpacked, an error is returned.
 pub fn decode(ebuf: &[u64], n_bases: usize, dbuf: &mut Vec<u8>) -> Result<(), NucleotideError> {
+    // If the sequence is large enough and SIMD is supported, use SIMD acceleration
+    if ebuf.len() > 1_000 && fast_decode(ebuf, n_bases, dbuf).is_ok() {
+        return Ok(());
+    }
+
+    // Otherwise, use the scalar implementation
     from_2bit_multi(ebuf, n_bases, dbuf)
 }
 
