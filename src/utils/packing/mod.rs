@@ -109,6 +109,53 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     naive::as_2bit(seq)
 }
 
+/// Encodes a nucleotide sequence into 2-bit packed representation and stores results in a vector.
+///
+/// This is an optimized version of the encoding process that directly writes the packed
+/// 2-bit representations into a provided output vector. This function is designed for
+/// performance-critical applications that need to process large sequences.
+///
+/// Each nucleotide is encoded using 2 bits:
+/// - A/a = 00
+/// - C/c = 01
+/// - G/g = 10
+/// - T/t = 11
+///
+/// # Arguments
+///
+/// * `seq` - A byte slice containing ASCII nucleotides (A,C,G,T, case insensitive)
+/// * `out` - A mutable vector that will be filled with the packed 2-bit representations
+///
+/// # Returns
+///
+/// Returns the number of u64 elements written to the output vector as a `u64`.
+///
+/// # Errors
+///
+/// Returns `NucleotideError::InvalidBase` if the sequence contains any characters
+/// other than A,C,G,T (case insensitive).
+///
+/// Returns `NucleotideError::Unsupported` if the current platform or CPU doesn't
+/// support the required SIMD instructions.
+///
+/// # Examples
+///
+/// ```rust
+/// use bitnuc::{fast_encode, NucleotideError};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut output = Vec::new();
+/// let count = fast_encode(b"ACGTACGTACGTACGT", &mut output)?;
+/// assert_eq!(count, 1); // One u64 written
+/// assert_eq!(output.len(), 1);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Performance
+///
+/// This function leverages platform-specific SIMD instructions when available for
+/// significantly improved performance over the standard encoding method.
 pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<u64, NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
     if std::arch::is_aarch64_feature_detected!("neon") {
@@ -117,6 +164,21 @@ pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<u64, NucleotideErro
     } else {
         Err(NucleotideError::Unsupported)
     }
+
+    #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
+    if is_x86_feature_detected!("avx2") {
+        // Implementation for AVX2 could be added here
+        return Err(NucleotideError::Unsupported);
+    } else {
+        return Err(NucleotideError::Unsupported);
+    }
+
+    // Default case for unsupported platforms
+    #[cfg(any(
+        feature = "nosimd",
+        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"))
+    ))]
+    Err(NucleotideError::Unsupported)
 }
 
 #[cfg(test)]

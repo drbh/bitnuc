@@ -127,12 +127,36 @@ fn bench_access_patterns(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_fast_packing_long_sequences(c: &mut Criterion) {
+    let mut group = c.benchmark_group("packing");
+
+    let impl_type = if cfg!(feature = "nosimd") {
+        "nosimd"
+    } else {
+        "simd"
+    };
+
+    // Test different sequence lengths
+    for size in [32_000, 64_000, 128_000, 256_000, 512_000].iter() {
+        let seq = generate_sequence(*size);
+
+        group.bench_with_input(
+            BenchmarkId::new(format!("pack_{}", impl_type), size),
+            &seq,
+            |b, seq| b.iter(|| PackedSequence::new(black_box(seq))),
+        );
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_packing,
     bench_unpacking,
     bench_roundtrip,
     bench_sequence_patterns,
-    bench_access_patterns
+    bench_access_patterns,
+    bench_fast_packing_long_sequences
 );
 criterion_main!(benches);
