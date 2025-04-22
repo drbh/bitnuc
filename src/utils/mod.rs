@@ -58,12 +58,6 @@ pub fn encode_alloc(sequence: &[u8]) -> Result<Vec<u64>, NucleotideError> {
 ///
 /// If the sequence cannot be unpacked, an error is returned.
 pub fn decode(ebuf: &[u64], n_bases: usize, dbuf: &mut Vec<u8>) -> Result<(), NucleotideError> {
-    // // If the sequence is large enough and SIMD is supported, use SIMD acceleration
-    // if ebuf.len() > 1_000 && fast_decode(ebuf, n_bases, dbuf).is_ok() {
-    //     return Ok(());
-    // }
-
-    // Otherwise, use the scalar implementation
     from_2bit_multi(ebuf, n_bases, dbuf)
 }
 
