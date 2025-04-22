@@ -62,53 +62,71 @@ pub unsafe fn from_2bit_simd(
     Ok(())
 }
 
-pub unsafe fn from_2bit_multi_simd(
-    ebuf: &[u64],
-    n_bases: usize,
-    sequence: &mut Vec<u8>,
+/// Decode 16 packed 2‑bit codes (`u32`) to ASCII (`A`, `C`, `G`, `T`).
+#[inline(always)]
+pub unsafe fn decode_16_nucleotides(encoded: u32, dst: *mut u8) {
+    // 1. Broadcast the word to four lanes
+    let val = vdupq_n_u32(encoded);
+    let mask = vdupq_n_u32(3);
+
+    // 2. Extract 2‑bit fields (negative counts = right shift)
+    #[inline(always)]
+    const fn shv(a: i32, b: i32, c: i32, d: i32) -> int32x4_t {
+        unsafe { core::mem::transmute([a, b, c, d]) }
+    }
+    let c0 = vandq_u32(vshlq_u32(val, shv(0, -2, -4, -6)), mask);
+    let c1 = vandq_u32(vshlq_u32(val, shv(-8, -10, -12, -14)), mask);
+    let c2 = vandq_u32(vshlq_u32(val, shv(-16, -18, -20, -22)), mask);
+    let c3 = vandq_u32(vshlq_u32(val, shv(-24, -26, -28, -30)), mask);
+
+    // 3. Narrow u32 → u8 and assemble 16 indices
+    let idx: uint8x16_t = vcombine_u8(
+        vmovn_u16(vcombine_u16(vmovn_u32(c0), vmovn_u32(c1))),
+        vmovn_u16(vcombine_u16(vmovn_u32(c2), vmovn_u32(c3))),
+    );
+
+    // 4. LUT: 0→A, 1→C, 2→G, 3→T
+    let lut: uint8x16_t = core::mem::transmute([
+        b'A', b'C', b'G', b'T', b'A', b'C', b'G', b'T', b'A', b'C', b'G', b'T', b'A', b'C', b'G',
+        b'T',
+    ]);
+    let ascii = vqtbl1q_u8(lut, idx);
+
+    // 5. Store
+    vst1q_u8(dst, ascii);
+}
+
+/// Decode a packed 2‑bit stream (`u64` words) back to ASCII nucleotides.
+pub unsafe fn decode_nucleotides_simd(
+    input: &[u64],
+    len: usize,
+    output: &mut [u8],
 ) -> Result<(), NucleotideError> {
-    sequence.reserve(n_bases);
-
-    // Create lookup table
-    let lookup = vld1_u8([b'A', b'C', b'G', b'T', b'A', b'C', b'G', b'T'].as_ptr());
-
-    // Process full u64 chunks (32 bases each)
-    let full_chunks = n_bases / 32;
-    for chunk in ebuf.iter().take(full_chunks) {
-        // Process each 32-base chunk in 8-base segments
-        for segment in 0..4 {
-            let segment_data = chunk >> (segment * 16);
-            let result = unpack_8_bases(segment_data, lookup);
-            let mut temp = [0u8; 8];
-            vst1_u8(temp.as_mut_ptr(), result);
-            sequence.extend_from_slice(&temp);
-        }
+    if len > output.len() {
+        return Err(NucleotideError::InvalidLength(len));
     }
 
-    // Handle remaining bases in the last chunk
-    let remaining_bases = n_bases % 32;
-    if remaining_bases > 0 {
-        let last_chunk = ebuf[full_chunks];
+    let chunk = 32;
+    let chunks = len / chunk;
 
-        // Process full 8-base segments in the last chunk
-        let remaining_segments = remaining_bases / 8;
-        for segment in 0..remaining_segments {
-            let segment_data = last_chunk >> (segment * 16);
-            let result = unpack_8_bases(segment_data, lookup);
-            let mut temp = [0u8; 8];
-            vst1_u8(temp.as_mut_ptr(), result);
-            sequence.extend_from_slice(&temp);
-        }
-
-        // Handle any remaining bases
-        let final_remaining = remaining_bases % 8;
-        if final_remaining > 0 {
-            let start = remaining_segments * 8;
-            process_remainder(last_chunk, start, remaining_bases, sequence);
-        }
+    for i in 0..chunks {
+        let w = input.get(i).copied().unwrap_or(0);
+        decode_16_nucleotides(w as u32, output.as_mut_ptr().add(i * chunk));
+        decode_16_nucleotides((w >> 32) as u32, output.as_mut_ptr().add(i * chunk + 16));
     }
 
+    // Scalar tail
+    let lut = [b'A', b'C', b'G', b'T'];
+    for j in (chunks * chunk)..len {
+        let idx = ((input[j / 32] >> (2 * (j % 32))) & 3) as usize;
+        output[j] = lut[idx];
+    }
     Ok(())
+}
+
+pub fn fast_decode(enc: &[u64], len: usize, out: &mut Vec<u8>) -> Result<(), NucleotideError> {
+    out.resize(len, 0);
+    unsafe { decode_nucleotides_simd(enc, len, out) }
 }
 
 #[cfg(test)]

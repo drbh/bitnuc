@@ -109,6 +109,38 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     naive::as_2bit(seq)
 }
 
+#[inline(always)]
+pub fn encode_internal(seq: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideError> {
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        aarch64::encode_internal(seq, ebuf)
+    } else {
+        naive::encode_internal(seq, ebuf)
+    }
+
+    #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
+    if is_x86_feature_detected!("avx2") {
+        // Use 256 bit instructions
+        avx::encode_internal(seq, ebuf)
+    } else if is_x86_feature_detected!("sse2") {
+        // Fall back to 128bit instructions
+        sse::encode_internal(seq, ebuf)
+    } else {
+        // Cannot make use of SIMD features
+        naive::encode_internal(seq, ebuf)
+    }
+
+    // Fall back to naive implemention if:
+    // - SIMD is disabled via nosimd feature
+    // - or SIMD feature is not enabled
+    // - or required CPU features aren't availabe
+    #[cfg(any(
+        feature = "nosimd",
+        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"),)
+    ))]
+    naive::encode_internal(seq)
+}
+
 #[cfg(test)]
 mod testing {
     use super::*;

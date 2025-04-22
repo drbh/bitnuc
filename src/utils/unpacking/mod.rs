@@ -14,7 +14,7 @@ pub fn from_2bit_multi(
 ) -> Result<(), NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
     if std::arch::is_aarch64_feature_detected!("neon") {
-        return unsafe { aarch64::from_2bit_multi_simd(ebuf, n_bases, dbuf) };
+        return aarch64::fast_decode(ebuf, n_bases, dbuf);
     } else {
         // Fall back to naive implemention if SIMD feature is not enabled
     }

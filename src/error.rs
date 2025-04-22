@@ -14,6 +14,7 @@ pub enum NucleotideError {
         end: usize,
         length: usize,
     },
+    Unsupported,
 }
 
 impl fmt::Display for NucleotideError {
@@ -38,6 +39,7 @@ impl fmt::Display for NucleotideError {
                     start, end, length
                 )
             }
+            NucleotideError::Unsupported => write!(f, "Unsupported architecture"),
         }
     }
 }
