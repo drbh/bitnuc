@@ -136,8 +136,10 @@ fn bench_fast_packing_long_sequences(c: &mut Criterion) {
         "simd"
     };
 
-    // Test different sequence lengths
-    for size in [32_000, 64_000, 128_000, 256_000, 512_000].iter() {
+    // Test a wide range of sequence lengths (mostly large ones)
+    for size in &[
+        1, 17, 64, 128, 256, 512, 1024, 32_000, 64_000, 128_000, 256_000, 512_000,
+    ] {
         let seq = generate_sequence(*size);
 
         group.bench_with_input(
