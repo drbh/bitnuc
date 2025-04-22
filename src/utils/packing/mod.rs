@@ -138,7 +138,7 @@ pub fn encode_internal(seq: &[u8], ebuf: &mut Vec<u64>) -> Result<(), Nucleotide
         feature = "nosimd",
         all(not(target_arch = "aarch64"), not(target_arch = "x86_64"),)
     ))]
-    naive::encode_internal(seq)
+    naive::encode_internal(seq, ebuf)
 }
 
 #[cfg(test)]
