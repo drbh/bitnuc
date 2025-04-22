@@ -218,22 +218,6 @@ pub unsafe fn encode_nucleotides_simd(
     Ok(())
 }
 
-// #[inline(always)]
-// pub fn encode_internal(sequence: &[u8]) -> Result<Vec<u64>, NucleotideError> {
-//     // if its less than 32, use the naive method before SIMD overhead
-//     if sequence.len() < 32 {
-//         // we know the vec is only 1 element
-//         let mut output = vec![0u64; 1];
-//         output[0] = as_2bit(sequence)?;
-//         return Ok(output);
-//     }
-
-//     // if its more than 32, use the SIMD method
-//     let mut output = vec![0u64; (sequence.len() + 31) / 32];
-//     unsafe { encode_nucleotides_simd(sequence, &mut output)? };
-//     Ok(output)
-// }
-
 #[inline(always)]
 pub fn encode_internal(sequence: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideError> {
     if sequence.len() < 32 {
