@@ -35,6 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 These functions are useful when you need to:
+
 - Implement custom sequence storage
 - Manipulate sequences at the bit level
 - Integrate with other bioinformatics tools
@@ -98,8 +99,6 @@ If you have a sequence that is not a multiple of 32 bases, the final u64 will be
 and the rest of the bits will be set to zero.
 
 Decoding will ignore these zero bits and return the original sequence.
-
-
 
 ## High-Level Sequence Type
 
@@ -183,10 +182,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 See the documentation for [`as_2bit`] and [`from_2bit`] for more details on
 working with packed sequences directly.
 
-
 ## SIMD Acceleration
 
-`as_2bit` and `from_2bit` are optionally SIMD accelerated depending on the architecture of your system.
+`as_2bit`, `from_2bit`, `encode`, and `decode` are optionally SIMD accelerated depending on the architecture of your system.
 By default, SIMD instructions are used, but they can be shut-off using the `nosimd` feature flag.
 
 For increased performance and to really take advantage of the SIMD I recommend compiling with:
@@ -202,5 +200,3 @@ or to add these flags to your project via the cargo build config:
 [build]
 rustflags = ["-C", "target-cpu=native"]
 ```
-
-Performance characteristics on my machine vary from 10% to 30% throughput increases depending on sequence size.
