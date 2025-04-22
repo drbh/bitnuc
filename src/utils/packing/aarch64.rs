@@ -72,6 +72,7 @@ unsafe fn process_simd_chunk(chunk: uint8x8_t, constants: &SimdConstants) -> uin
 }
 
 #[cfg(target_arch = "aarch64")]
+#[inline(always)]
 pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     if seq.len() > 32 {
         return Err(NucleotideError::SequenceTooLong(seq.len()));
@@ -168,10 +169,16 @@ unsafe fn valid_block(v: uint8x16_t) -> bool {
 /// * `output` must be large enough; otherwise `Err(())` is returned.
 /// * On any invalid byte the function zero‑fills `output` and returns `Err(())`.
 #[cfg(target_arch = "aarch64")]
-pub unsafe fn encode_nucleotides_simd(input: &[u8], output: &mut [u64]) -> Result<(), ()> {
-    let need = (input.len() + 31) / 32;
-    if output.len() < need {
-        return Err(());
+#[inline(always)]
+pub unsafe fn encode_nucleotides_simd(
+    input: &[u8],
+    output: &mut [u64],
+) -> Result<(), NucleotideError> {
+    // If less than 32 nt, we can with the default method before SIMD overhead
+    if input.len() < 32 {
+        let tail = as_2bit(input).unwrap();
+        output[0] = tail;
+        return Ok(());
     }
 
     output.fill(0);
@@ -185,7 +192,7 @@ pub unsafe fn encode_nucleotides_simd(input: &[u8], output: &mut [u64]) -> Resul
         let v0 = vld1q_u8(ip);
         let v1 = vld1q_u8(ip.add(16));
         if !valid_block(v0) || !valid_block(v1) {
-            return Err(());
+            return Err(NucleotideError::InvalidBase(*ip));
         }
         *out = (encode_16_nucleotides(v0) as u64) | ((encode_16_nucleotides(v1) as u64) << 32);
 
@@ -203,7 +210,7 @@ pub unsafe fn encode_nucleotides_simd(input: &[u8], output: &mut [u64]) -> Resul
                 b'c' => 1u64,
                 b'g' => 2u64,
                 b't' => 3u64,
-                _ => return Err(()),
+                _ => return Err(NucleotideError::InvalidBase(*ip.add(i))),
             } << (2 * i);
         }
         *out = tail;
@@ -211,7 +218,41 @@ pub unsafe fn encode_nucleotides_simd(input: &[u8], output: &mut [u64]) -> Resul
     Ok(())
 }
 
-pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<(), ()> {
-    out.resize((seq.len() + 31) / 32, 0);
-    unsafe { encode_nucleotides_simd(seq, out) }
+// #[inline(always)]
+// pub fn encode_internal(sequence: &[u8]) -> Result<Vec<u64>, NucleotideError> {
+//     // if its less than 32, use the naive method before SIMD overhead
+//     if sequence.len() < 32 {
+//         // we know the vec is only 1 element
+//         let mut output = vec![0u64; 1];
+//         output[0] = as_2bit(sequence)?;
+//         return Ok(output);
+//     }
+
+//     // if its more than 32, use the SIMD method
+//     let mut output = vec![0u64; (sequence.len() + 31) / 32];
+//     unsafe { encode_nucleotides_simd(sequence, &mut output)? };
+//     Ok(output)
+// }
+
+#[inline(always)]
+pub fn encode_internal(sequence: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideError> {
+    if sequence.len() < 32 {
+        // Use the naive method for small sequences
+        let bits = as_2bit(sequence)?;
+        ebuf.push(bits);
+        return Ok(());
+    }
+
+    // If the sequence is large enough and SIMD is supported, use SIMD acceleration
+    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
+    if std::arch::is_aarch64_feature_detected!("neon") {
+        unsafe {
+            // resize the buffer to fit the number of chunks
+            let n_chunks = sequence.len().div_ceil(32);
+            ebuf.resize(n_chunks, 0);
+            encode_nucleotides_simd(sequence, ebuf)?;
+        }
+        return Ok(());
+    }
+    Ok(())
 }

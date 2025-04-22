@@ -62,55 +62,6 @@ pub unsafe fn from_2bit_simd(
     Ok(())
 }
 
-pub unsafe fn from_2bit_multi_simd(
-    ebuf: &[u64],
-    n_bases: usize,
-    sequence: &mut Vec<u8>,
-) -> Result<(), NucleotideError> {
-    sequence.reserve(n_bases);
-
-    // Create lookup table
-    let lookup = vld1_u8([b'A', b'C', b'G', b'T', b'A', b'C', b'G', b'T'].as_ptr());
-
-    // Process full u64 chunks (32 bases each)
-    let full_chunks = n_bases / 32;
-    for chunk in ebuf.iter().take(full_chunks) {
-        // Process each 32-base chunk in 8-base segments
-        for segment in 0..4 {
-            let segment_data = chunk >> (segment * 16);
-            let result = unpack_8_bases(segment_data, lookup);
-            let mut temp = [0u8; 8];
-            vst1_u8(temp.as_mut_ptr(), result);
-            sequence.extend_from_slice(&temp);
-        }
-    }
-
-    // Handle remaining bases in the last chunk
-    let remaining_bases = n_bases % 32;
-    if remaining_bases > 0 {
-        let last_chunk = ebuf[full_chunks];
-
-        // Process full 8-base segments in the last chunk
-        let remaining_segments = remaining_bases / 8;
-        for segment in 0..remaining_segments {
-            let segment_data = last_chunk >> (segment * 16);
-            let result = unpack_8_bases(segment_data, lookup);
-            let mut temp = [0u8; 8];
-            vst1_u8(temp.as_mut_ptr(), result);
-            sequence.extend_from_slice(&temp);
-        }
-
-        // Handle any remaining bases
-        let final_remaining = remaining_bases % 8;
-        if final_remaining > 0 {
-            let start = remaining_segments * 8;
-            process_remainder(last_chunk, start, remaining_bases, sequence);
-        }
-    }
-
-    Ok(())
-}
-
 /// Decode 16 packed 2‑bit codes (`u32`) to ASCII (`A`, `C`, `G`, `T`).
 #[inline(always)]
 pub unsafe fn decode_16_nucleotides(encoded: u32, dst: *mut u8) {
@@ -150,9 +101,9 @@ pub unsafe fn decode_nucleotides_simd(
     input: &[u64],
     len: usize,
     output: &mut [u8],
-) -> Result<(), ()> {
+) -> Result<(), NucleotideError> {
     if len > output.len() {
-        return Err(());
+        return Err(NucleotideError::InvalidLength(len));
     }
 
     let chunk = 32;
@@ -173,7 +124,7 @@ pub unsafe fn decode_nucleotides_simd(
     Ok(())
 }
 
-pub fn fast_decode(enc: &[u64], len: usize, out: &mut Vec<u8>) -> Result<(), ()> {
+pub fn fast_decode(enc: &[u64], len: usize, out: &mut Vec<u8>) -> Result<(), NucleotideError> {
     out.resize(len, 0);
     unsafe { decode_nucleotides_simd(enc, len, out) }
 }

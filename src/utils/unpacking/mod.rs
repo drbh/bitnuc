@@ -14,7 +14,7 @@ pub fn from_2bit_multi(
 ) -> Result<(), NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
     if std::arch::is_aarch64_feature_detected!("neon") {
-        return unsafe { aarch64::from_2bit_multi_simd(ebuf, n_bases, dbuf) };
+        return aarch64::fast_decode(ebuf, n_bases, dbuf);
     } else {
         // Fall back to naive implemention if SIMD feature is not enabled
     }
@@ -179,75 +179,6 @@ pub fn from_2bit_alloc(packed: u64, expected_size: usize) -> Result<Vec<u8>, Nuc
     let mut sequence = Vec::with_capacity(expected_size);
     from_2bit(packed, expected_size, &mut sequence)?;
     Ok(sequence)
-}
-
-/// Efficiently decodes multiple 2-bit packed nucleotide sequences back into ASCII.
-///
-/// This is an optimized version of the decoding process that directly writes the
-/// unpacked ASCII nucleotides into a provided output vector. This function is designed for
-/// performance-critical applications that need to process large sequences.
-///
-/// # Arguments
-///
-/// * `enc` - A slice of u64 values containing the 2-bit packed representations
-/// * `len` - The total number of nucleotides to decode
-/// * `out` - A mutable vector that will be filled with the decoded ASCII nucleotides
-///
-/// # Returns
-///
-/// Returns the number of bytes written to the output vector as a `u64`.
-///
-/// # Errors
-///
-/// Returns `NucleotideError::Unsupported` if the current platform or CPU doesn't
-/// support the required SIMD instructions.
-///
-/// # Examples
-///
-/// ```rust
-/// use bitnuc::{as_2bit, fast_decode, NucleotideError};
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // Pack a sequence
-/// let packed = as_2bit(b"ACGTACGTACGTACGT")?;
-/// let encoded = vec![packed];
-///
-/// // Fast decode
-/// let mut decoded = Vec::new();
-/// let count = fast_decode(&encoded, 16, &mut decoded)?;
-/// assert_eq!(count, 16); // 16 nucleotides were decoded
-/// assert_eq!(&decoded, b"ACGTACGTACGTACGT");
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Performance
-///
-/// This function leverages platform-specific SIMD instructions when available for
-/// significantly improved performance over the standard decoding method.
-pub fn fast_decode(enc: &[u64], len: usize, out: &mut Vec<u8>) -> Result<u64, NucleotideError> {
-    #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
-    if std::arch::is_aarch64_feature_detected!("neon") {
-        let _ = unsafe { aarch64::fast_decode(enc, len, out) };
-        Ok(out.len() as u64)
-    } else {
-        Err(NucleotideError::Unsupported)
-    }
-
-    #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
-    if is_x86_feature_detected!("avx2") {
-        // Implementation for AVX2 could be added here
-        return Err(NucleotideError::Unsupported);
-    } else {
-        return Err(NucleotideError::Unsupported);
-    }
-
-    // Default case for unsupported platforms
-    #[cfg(any(
-        feature = "nosimd",
-        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"))
-    ))]
-    Err(NucleotideError::Unsupported)
 }
 
 #[cfg(test)]

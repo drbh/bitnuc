@@ -109,76 +109,36 @@ pub fn as_2bit(seq: &[u8]) -> Result<u64, NucleotideError> {
     naive::as_2bit(seq)
 }
 
-/// Encodes a nucleotide sequence into 2-bit packed representation and stores results in a vector.
-///
-/// This is an optimized version of the encoding process that directly writes the packed
-/// 2-bit representations into a provided output vector. This function is designed for
-/// performance-critical applications that need to process large sequences.
-///
-/// Each nucleotide is encoded using 2 bits:
-/// - A/a = 00
-/// - C/c = 01
-/// - G/g = 10
-/// - T/t = 11
-///
-/// # Arguments
-///
-/// * `seq` - A byte slice containing ASCII nucleotides (A,C,G,T, case insensitive)
-/// * `out` - A mutable vector that will be filled with the packed 2-bit representations
-///
-/// # Returns
-///
-/// Returns the number of u64 elements written to the output vector as a `u64`.
-///
-/// # Errors
-///
-/// Returns `NucleotideError::InvalidBase` if the sequence contains any characters
-/// other than A,C,G,T (case insensitive).
-///
-/// Returns `NucleotideError::Unsupported` if the current platform or CPU doesn't
-/// support the required SIMD instructions.
-///
-/// # Examples
-///
-/// ```rust
-/// use bitnuc::{fast_encode, NucleotideError};
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut output = Vec::new();
-/// let count = fast_encode(b"ACGTACGTACGTACGT", &mut output)?;
-/// assert_eq!(count, 1); // One u64 written
-/// assert_eq!(output.len(), 1);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Performance
-///
-/// This function leverages platform-specific SIMD instructions when available for
-/// significantly improved performance over the standard encoding method.
-pub fn fast_encode(seq: &[u8], out: &mut Vec<u64>) -> Result<u64, NucleotideError> {
+#[inline(always)]
+pub fn encode_internal(seq: &[u8], ebuf: &mut Vec<u64>) -> Result<(), NucleotideError> {
     #[cfg(all(target_arch = "aarch64", not(feature = "nosimd")))]
     if std::arch::is_aarch64_feature_detected!("neon") {
-        let _ = aarch64::fast_encode(seq, out);
-        Ok(out.len() as u64)
+        aarch64::encode_internal(seq, ebuf)
     } else {
-        Err(NucleotideError::Unsupported)
+        naive::encode_internal(seq, ebuf)
     }
 
     #[cfg(all(target_arch = "x86_64", not(feature = "nosimd")))]
     if is_x86_feature_detected!("avx2") {
-        // Implementation for AVX2 could be added here
-        return Err(NucleotideError::Unsupported);
+        // Use 256 bit instructions
+        avx::encode_internal(seq, ebuf)
+    } else if is_x86_feature_detected!("sse2") {
+        // Fall back to 128bit instructions
+        sse::encode_internal(seq, ebuf)
     } else {
-        return Err(NucleotideError::Unsupported);
+        // Cannot make use of SIMD features
+        naive::encode_internal(seq, ebuf)
     }
 
-    // Default case for unsupported platforms
+    // Fall back to naive implemention if:
+    // - SIMD is disabled via nosimd feature
+    // - or SIMD feature is not enabled
+    // - or required CPU features aren't availabe
     #[cfg(any(
         feature = "nosimd",
-        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"))
+        all(not(target_arch = "aarch64"), not(target_arch = "x86_64"),)
     ))]
-    Err(NucleotideError::Unsupported)
+    naive::encode_internal(seq)
 }
 
 #[cfg(test)]
