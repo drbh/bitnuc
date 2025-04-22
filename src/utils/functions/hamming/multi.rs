@@ -121,7 +121,7 @@ unsafe fn hdist_multi_neon(ebuf1: &[u64], ebuf2: &[u64], full_chunks: usize) -> 
 #[inline]
 pub fn hdist(ebuf1: &[u64], ebuf2: &[u64], n_bases: usize) -> Result<u32, NucleotideError> {
     // Validate buffer sizes
-    let expected_chunks = (n_bases + 31) / 32;
+    let expected_chunks = n_bases.div_ceil(32);
     if ebuf1.len() < expected_chunks || ebuf2.len() < expected_chunks {
         return Err(NucleotideError::InvalidLength(n_bases));
     }

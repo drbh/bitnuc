@@ -52,7 +52,7 @@ pub fn split_packed(
     let right_chunks = if idx == slen {
         0
     } else {
-        ((slen - idx) + 31) / 32
+        (slen - idx).div_ceil(32)
     };
 
     // Reserve space in output buffers
